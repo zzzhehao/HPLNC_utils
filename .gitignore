@@ -1,0 +1,14 @@
+*
+
+!DESCRIPTION
+!NAMESPACE
+!LICENSE
+!LICENSE.md
+!NEWS.md
+!README.md
+
+!R/
+!R/*
+!man/
+!man/*
+!.gitignore
