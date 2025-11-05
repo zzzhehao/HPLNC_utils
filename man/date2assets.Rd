@@ -2,10 +2,10 @@
 % Please edit documentation in R/utils.R
 \name{date2assets}
 \alias{date2assets}
-\title{Generate path to given date's asset folder in log (is this really necessary?)}
+\title{Create assets folder for the day}
 \usage{
 date2assets(date)
 }
 \description{
-Generate path to given date's asset folder in log (is this really necessary?)
+Create assets folder for the day
 }

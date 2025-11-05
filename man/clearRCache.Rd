@@ -2,10 +2,10 @@
 % Please edit documentation in R/utils.R
 \name{clearRCache}
 \alias{clearRCache}
-\title{Clear Temporary File in R (internal)}
+\title{Clear temporary cache file of R}
 \usage{
 clearRCache()
 }
 \description{
-Clear Temporary File in R (internal)
+Clear temporary cache file of R
 }

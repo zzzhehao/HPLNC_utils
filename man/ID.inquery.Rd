@@ -2,10 +2,10 @@
 % Please edit documentation in R/utils.R
 \name{ID.inquery}
 \alias{ID.inquery}
-\title{Database query of Haploniscid specimen using DZMB-2-HH ID}
+\title{Query specimen info with DZMB2HH ID}
 \usage{
 ID.inquery(ID)
 }
 \description{
-Database query of Haploniscid specimen using DZMB-2-HH ID
+Query specimen info with DZMB2HH ID
 }
