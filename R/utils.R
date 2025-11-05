@@ -15,6 +15,13 @@ ID.inquery <- function(ID) {
     DBpullTable("metadata.Specimen.Haploniscidae") %>% filter(DZMB2HH %in% ID) %>% t()
 }
 
+#' Query specimen info with voucher
+#' @importFrom dplyr %>%
+#' @importFrom dplyr filter
+voucher.inquery <- function(ID) {
+    DBpullTable("metadata.Specimen.Haploniscidae") %>% filter(voucher %in% ID) %>% t()
+}
+
 #' Clear temporary cache file of R
 clearRCache <- function() {
     unlink(tempdir(), recursive = TRUE)
