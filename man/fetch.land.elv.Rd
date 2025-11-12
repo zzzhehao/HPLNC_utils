@@ -4,14 +4,14 @@
 \alias{fetch.land.elv}
 \title{Fetch Land Elevation Data}
 \usage{
-fetch.land.elv(boundaries, crs = 4326, z = 3)
+fetch.land.elv(boundaries, crs = 4326, z = 3, cache = T)
 }
 \arguments{
 \item{boundaries}{A list of boundaries (min.lat, min.long, max.lat, max.long).}
 
 \item{z}{Zoom level for elevation.}
 
-\item{crrs}{Coorinate reference system.}
+\item{cache}{Logical. Default to TRUE, the function will generate cache for the exact same boundary for future reuse.}
 }
 \description{
 Fetch Land Elevation Data

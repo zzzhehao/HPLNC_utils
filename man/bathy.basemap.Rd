@@ -5,7 +5,7 @@
 \title{Create a Bathymetric and Topographic Basemap}
 \usage{
 bathy.basemap(
-  boundaries,
+  boundaries = list(0, -100, 75, 20),
   vertical.tiles = 5,
   horizontal.tiles = 5,
   checkerboard = T,
@@ -13,11 +13,12 @@ bathy.basemap(
   land = T,
   crs = 4326,
   resolution = 5,
-  z = 3
+  z = 3,
+  cache = T
 )
 }
 \arguments{
-\item{boundaries}{A list of boundaries (min.lat, min.long, max.lat, max.long).}
+\item{boundaries}{A list of boundaries (min.lat, min.long, max.lat, max.long). Default values are suitable for North Atlantic.}
 
 \item{vertical.tiles}{Number of vertical checkerboard tiles. Will be ignored if \code{checkerboard} if False.}
 

@@ -176,19 +176,31 @@ geom_checkerboard <- function(min.lat, max.lat, lat.interval.count, min.long, ma
     ) %>% return()
 }
 
-fetch.NOAA.bathy <- function(boundaries, resolution = 5) {
+#' Fetch bathymetry map from NOAA. 
+#' 
+#' @param cache Logical. Default to TRUE, the function will generate cache for the exact same boundary for future reuse. 
+#' @import readr
+fetch.NOAA.bathy <- function(boundaries, resolution = 5, cache = T) {
     require(marmap)
     require(scales)
-    conflicted::conflicts_prefer(scales::rescale)
 
-    bathy <- getNOAA.bathy(
-        lat1 = boundaries[[1]], #min lat
-        lon1 = boundaries[[2]], #min long
-        lat2 = boundaries[[3]], #max lat
-        lon2 = boundaries[[4]], #max long
-        resolution = resolution
-    )
-    bathy.df <- fortify.bathy(bathy)
+    filename <- paste0("data/cache/bathy_", paste0(boundaries, resolution, collapse = ""), ".rds")
+
+    if (filename %in% list.files("data/cache", full.names = T)) {
+        bathy.df <- readRDS(filename)
+    } else {
+        bathy <- getNOAA.bathy(
+            lat1 = boundaries[[1]], #min lat
+            lon1 = boundaries[[2]], #min long
+            lat2 = boundaries[[3]], #max lat
+            lon2 = boundaries[[4]], #max long
+            resolution = resolution
+        )
+        bathy.df <- fortify.bathy(bathy)
+        if (cache) {
+            write_rds(bathy.df, filename)
+        }
+    }
     return(bathy.df)
 }
 
@@ -197,6 +209,7 @@ fetch.NOAA.bathy <- function(boundaries, resolution = 5) {
 #' @param boundaries A list of boundaries (min.lat, min.long, max.lat, max.long).
 #' @param crs Coorinate reference system.
 #' @param z Zoom level for elevation.
+#' @param cache Logical. Default to TRUE, the function will generate cache for the exact same boundary for future reuse. 
 #' 
 #' @import elevatr
 #' @import terra
@@ -205,31 +218,40 @@ fetch.NOAA.bathy <- function(boundaries, resolution = 5) {
 #' @import scales
 #' @import raster
 #' @import dplyr
-#' @import ggnewscale
+#' @import readr
 #' @importFrom magrittr %>%
 #' @importFrom stats na.omit
 #' 
 #' @export
 #' 
-fetch.land.elv <- function(boundaries, crs = 4326, z = 3) {
-    land_sf <- giscoR::gisco_get_coastallines()
-    bbox <- sf::st_bbox(
-        c(xmin = boundaries[[2]], ymin = boundaries[[1]], xmax = boundaries[[4]], ymax = boundaries[[3]]), 
-        crs = crs)
-    
-    land_sf_crop <- sf::st_crop(land_sf, bbox)
-
-    land_transformed <- sf::st_cast(sf::st_transform(land_sf_crop, crs = crs), "MULTIPOLYGON")
-
-    land_elev <- elevatr::get_elev_raster(
-        locations = land_transformed, 
-        z = z, 
-        clip = "locations")
-
-    land_elev.df <- as.data.frame(land_elev, xy = T) %>% na.omit() 
+fetch.land.elv <- function(boundaries, crs = 4326, z = 3, cache = T) {
+    filename <- paste0("data/cache/landelev_", paste0(boundaries, z, collapse = ""), ".rds")
+    if (filename %in% list.files("data/cache", full.names = T)) {
+        land_elev.df <- readRDS(filename)
+    } else {
+        land_sf <- giscoR::gisco_get_coastallines()
+        bbox <- sf::st_bbox(
+            c(xmin = boundaries[[2]], ymin = boundaries[[1]], xmax = boundaries[[4]], ymax = boundaries[[3]]), 
+            crs = crs)
         
-    colnames(land_elev.df)[3] <- "Elevation"
-    land_elev.df <- land_elev.df[land_elev.df$Elevation >= 0,]
+        land_sf_crop <- sf::st_crop(land_sf, bbox)
+    
+        land_transformed <- sf::st_cast(sf::st_transform(land_sf_crop, crs = crs), "MULTIPOLYGON")
+    
+        land_elev <- elevatr::get_elev_raster(
+            locations = land_transformed, 
+            z = z, 
+            clip = "locations")
+    
+        land_elev.df <- as.data.frame(land_elev, xy = T) %>% na.omit() 
+            
+        colnames(land_elev.df)[3] <- "Elevation"
+        land_elev.df <- land_elev.df[land_elev.df$Elevation >= 0,]
+
+        if (cache) {
+            write_rds(land_elev.df, filename)
+        }
+    }
 
     return(land_elev.df)
 }
@@ -238,7 +260,7 @@ fetch.land.elv <- function(boundaries, crs = 4326, z = 3) {
 #'
 #' (Add your description here...)
 #'
-#' @param boundaries A list of boundaries (min.lat, min.long, max.lat, max.long). 
+#' @param boundaries A list of boundaries (min.lat, min.long, max.lat, max.long). Default values are suitable for North Atlantic.
 #' @param vertical.tiles Number of vertical checkerboard tiles. Will be ignored if `checkerboard` if False.
 #' @param horizontal.tiles Number of horizontal checkerboard tiles. Will be ignored if `checkerboard` if False.
 #' @param bathy.clr Logical. Add bathymetry colors?
@@ -257,7 +279,7 @@ fetch.land.elv <- function(boundaries, crs = 4326, z = 3) {
 #' @export
 #'
 bathy.basemap <- function(
-    boundaries, 
+    boundaries = list(0, -100, 75, 20), 
     vertical.tiles = 5,
     horizontal.tiles = 5,
     checkerboard = T,
@@ -265,43 +287,56 @@ bathy.basemap <- function(
     land = T,
     crs = 4326,
     resolution = 5,
-    z = 3
+    z = 3,
+    cache = T
 ) {
     require(ggplot2)
-    bathy <- ggplot() +
-        geom_tile(
-            data = fetch.NOAA.bathy(boundaries, resolution = resolution), aes(x, y, fill = z))
 
-    if (bathy.clr) {
-        bathy <- bathy +
-            scale_fill_gradientn(
-                colors = c("#01040b", "#071e33", "#396573", "#598f92"),
-                values = scales::rescale(c(-8000, -5500, -2500, 0)),
-                breaks = c(-2000, -4000, -6000, -8000),
-                limits = c(-10000, 0), 
-                name = "Depth (m)",
-                na.value = "#2f3031"
-            ) +
-            ggnewscale::new_scale_fill()
-    }
+    filename <- paste0("data/cache/bathybasemap_", paste0(boundaries, z, as.numeric(bathy.clr), resolution, crs, collapse = ""), ".rds")
 
-    if (land) {
-        bathy <- bathy +
+    if (filename %in% list.files("data/cache", full.names = T)) {
+        # cat("Found cache map.\n")
+        bathy <- readRDS(filename)
+    } else {
+        bathy <- ggplot() +
             geom_tile(
-                data = fetch.land.elv(boundaries, crs, z), 
-                aes(x = x, y = y, fill = Elevation), 
-                show.legend = F
-            ) +
-            scale_fill_gradientn(
-                colors = c("#2f3031", "#ad843d", "#ffd56a"),
-                values = scales::rescale(c(0, 1000, 2000)),
-                name = "Altitude (m)"
-            ) +
-            new_scale_fill()
+                data = fetch.NOAA.bathy(boundaries, resolution = resolution), aes(x, y, fill = z))
+
+        if (bathy.clr) {
+            bathy <- bathy +
+                scale_fill_gradientn(
+                    colors = c("#01040b", "#071e33", "#396573", "#598f92"),
+                    values = scales::rescale(c(-8000, -5500, -2500, 0)),
+                    breaks = c(-2000, -4000, -6000, -8000),
+                    limits = c(-10000, 0), 
+                    name = "Depth (m)",
+                    na.value = "#2f3031"
+                ) +
+                ggnewscale::new_scale_fill()
+        }
+
+        if (land) {
+            bathy <- bathy +
+                geom_tile(
+                    data = fetch.land.elv(boundaries, crs, z), 
+                    aes(x = x, y = y, fill = Elevation), 
+                    show.legend = F
+                ) +
+                scale_fill_gradientn(
+                    colors = c("#2f3031", "#ad843d", "#ffd56a"),
+                    values = scales::rescale(c(0, 1000, 2000)),
+                    name = "Altitude (m)"
+                ) +
+                new_scale_fill()
+        }
+        bathy <- bathy +
+            coord_sf(crs = st_crs(crs)) +
+            labs(x = "", y = "")
+        if (cache) {
+            write_rds(bathy, filename)
+        }
     }
-    bathy <- bathy +
-        coord_sf(crs = st_crs(crs)) +
-        labs(x = "", y = "")
+    
 
     if (checkerboard) {
         bathy <- bathy +
@@ -329,4 +364,3 @@ bathy.basemap <- function(
 
     return(bathy)
 }
-

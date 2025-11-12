@@ -61,3 +61,23 @@ format_metadata.Station <- function(tbl, formatting = T) {
         )
     return(tbl.format)
 }
+
+#' Format morphocheck result
+#' @import stringr
+format_morphocheck <- function(tbl) {
+    tbl %>% mutate(
+        ON_morpho_ZH = gsub("\\.", "", ON_morpho_ZH),
+        sex_ZH = factor(sex_ZH),
+        stage_ZH = factor(stage_ZH),
+        n = ifelse(is.na(n), 1, n),
+        gen_morpho_ZH = factor(gen_morpho_ZH),
+        sp_morpho_ZH = factor(sp_morpho_ZH),
+        DZMB2HH = as.numeric(DZMB2HH),
+        gensp_morpho_ZH = case_when(
+            is.na(gen_morpho_ZH) ~ "Haploniscidae sp.",
+            !is.na(gen_morpho_ZH) & is.na(sp_morpho_ZH) ~ paste(gen_morpho_ZH, "sp."),
+            str_detect(sp_morpho_ZH, "unicornis|aduncus") ~ "Haploniscus unicornis complex",
+            .default = paste(gen_morpho_ZH, sp_morpho_ZH)
+        )
+    )
+}
