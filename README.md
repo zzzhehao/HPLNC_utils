@@ -1,4 +1,4 @@
-## HPLNC Utilites
+## HPLNC
 
 Utilities and handy functions I wrote for my Master Thesis.
 
