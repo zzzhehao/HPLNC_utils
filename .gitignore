@@ -12,3 +12,5 @@
 !man/
 !man/*
 !.gitignore
+
+!HPLNC_**.pdf
