@@ -16,4 +16,6 @@ Imports:
     tidyr,
     lubridate,
     ggplot2,
-    stringr
+    stringr,
+    kableExtra,
+    ggpubr
