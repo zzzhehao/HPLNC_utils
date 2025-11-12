@@ -12,7 +12,7 @@ devtools::install_github("https://github.com/zzzhehao/HPLNC_utils.git")
 
 ## Function
 
-Some functions are for general purpose and could easily be used in other projects, the others are more or less project-based, adapted to the file structure I am using. They are mostly nice wrapper functions for handling repetitive work in my daily data management. Some could be easily modified to a general purpose function (but I am not going to do it soon because it's extra work for me), some are very specific in file handling so that it make no sense to modify them into general purpose functions, but maybe you can get some inspiration from them.
+Some functions are for general purpose and could easily be used in other projects, the others are more or less project-based, adapted to the file structure I am using. They are mostly nice wrapper functions for handling repetitive work in my daily data management. Some could be easily modified to a general purpose function (but I am not going to do it soon because it's extra work for me), some are very specific in file handling so that it makes no sense to modify them into general purpose functions, but maybe you can get some inspiration from them.
 
 | **Function**             | **Purpose**                        | **Description**                                                                              | **Project-specific**    |
 | ------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------- |
@@ -48,3 +48,5 @@ Some functions are for general purpose and could easily be used in other project
 | `nexus2fasta`            | Sequence Utility                   | Convert NEXUS alignment to FASTA alignment                                                   | No                      |
 
 All functions have documentation that can be called with `help()` or `?` in R. Also check the PDF reference manual for details.
+
+Thanks Gemini for keeping some function tidy and robust when I was exhausted. 
