@@ -1,9 +1,14 @@
+#' Create a Summary Table Mapping Sequence Label/Accession Number with Vouchered Animals.
+#' 
+#' @description
+#' This will summarize the sequence labels in the way that the sequnces originated from the same vouchered animals could be linked together, which is essential for concatenate multilocus alignment. 
+#' 
+#' @import DBI
+#' @import tidyverse
+#' @import RSQLite
+#' @return Nothing. A data.frame will be written into the database. 
+#' @param regenerate logical. Whether to overwrite existing table in the database. Otherwise only the rows with vouchered animal not yet in the database will be added. 
 update_sequence_map <- function(regenerate = F){
-    source("functions/DBsnapshot.R")
-
-    require(tidyverse)
-    require(DBI)
-
     # Generate wide table
     metadata.seq <- DBpullTable("metadata.Sequence.NCBI", F, F)
     sequence.map.ncbi <- metadata.seq %>% pivot_wider(id_cols = c_organism_id, names_from = c_gene, values_from = `INSDSeq_primary-accession`)

@@ -1,8 +1,12 @@
+#' Extract INSD Metadata from `xml` File Downloaded From NCBI Genebank
+#' 
+#' @param xml File path to `xml` file
+#' @return A data.frame of flattened tabular metadata.
+#' @import rlist
+#' @import tidyverse
+#' @import XML
+#' @import xml2
 extract_INSD_metadata <- function(xml) {
-    require(rlist)
-    require(tidyverse)
-    require(XML)
-    require(xml2)
     suppressMessages({
         ncbi.xml <- read_xml(xml)
         ncbi.xml.parsed <- xmlParse(ncbi.xml)
@@ -70,11 +74,14 @@ extract_INSD_metadata <- function(xml) {
     return(INSDMetadata)
 }
 
+#' Wrapper Function to Read All `XML` File and Update Information to Databse.
+#' 
+#' @param XML_folder Path to folder containing `xml` files. All `xml` files in the folder will be loaded.
+#' @param regenerate logical. Whether to overwrite the table in database (i.e. regenerating the table). Default to FALSE, which will only add metadata that has not been added in the table.
+#' @import tidyverse
+#' @import DBI
+#' @return Nothing. 
 update_INSD_metadata <- function(XML_folder = "data/sequence/INSD", regenerate = F) {
-    source("functions/DBchange.R")
-    require(tidyverse)
-    require(DBI)
-
     filter_c <- function(metadata.seq){
         metadata.seq %>%
             mutate(

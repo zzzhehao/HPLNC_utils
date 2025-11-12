@@ -1,3 +1,24 @@
+#' Snapshot the MrBayes Result During the Analysis
+#' 
+#' @description
+#' This function allows a visualization of a consensus tree with currently sampled tree without stopping the MrBayes process.
+#' 
+#' @param assets_date Date of the asset folder where the MrBayes analysis process is located in. This is a project-specific data structure adaptation. It just simplifies the location of the target files. 
+#' @param outgroup Sequence labels of the outgroup sequences. It will use automatic gap detection to find the sequences so it allows a certain degree of ambiguity in the name. 
+#' @param subfolder Subfolder where the MrBayes process is located under the asset folder of the date. This is a project-specific data structure adaptation. It just simplifies the location of the target files. 
+#' @param treeviz logical. Whether to visualize the tree. Default to TRUE.
+#' @param xlim.factor Factor to expand the x-axis of the tree. Increase this value if long labels are omitted because they exceed the plotting area.
+#' 
+#' @return A ggplot of visualized tree if `treeviz` is set to TRUE. A tidytree "treedata" class object if `treeviz` is set to FALSE.
+#' 
+#' @import ggtree
+#' @import treeio
+#' @import ggtext
+#' @import aplot
+#' @import ggnewscale
+#' @import grid
+#' @import gridExtra
+#' @import ggpubr
 midwayTreeViz <- function(assets_date, outgroup, subfolder = "", treeviz = T, xlim.factor = 1.6) {
     suppressMessages({
         require(ggtree)
@@ -85,22 +106,28 @@ midwayTreeViz <- function(assets_date, outgroup, subfolder = "", treeviz = T, xl
     return(tree.viz)
 }
 
-visualize_tree <- function(assets_date, outgroup, subfolder = "", xfac = 1.5) {
+#' Visualize Consensus Tree Produced From MrBayes Analysis
+#' 
+#' @param assets_date Date of the asset folder where the MrBayes analysis process is located in. This is a project-specific data structure adaptation. It just simplifies the location of the target files. 
+#' @param outgroup Sequence labels of the outgroup sequences. It will use automatic gap detection to find the sequences so it allows a certain degree of ambiguity in the name. 
+#' @param subfolder Subfolder where the MrBayes process is located under the asset folder of the date. This is a project-specific data structure adaptation. It just simplifies the location of the target files. 
+#' @param xlim.factor Factor to expand the x-axis of the tree. Increase this value if long labels are omitted because they exceed the plotting area.
+#' 
+#' @import ggtree
+#' @import treeio
+#' @import ggtext
+#' @import aplot
+#' @import ggnewscale
+#' @import grid
+#' @import gridExtra
+#' @import ggpubr
+#' 
+#' @return A ggplot of visualized tree.
+visualize_tree <- function(assets_date, outgroup, subfolder = "", xlim.factor = 1.5) {
     assets_path <- paste("docs/logs/assets", assets_date, subfolder, sep = "/") %>% gsub("/$", "", .)
     contree <- list.files(assets_path, pattern = "\\.con\\.tre$", full.names = T)
     if (length(contree) > 1) {stop("Multiple `.con.tre` files.")}
     tree <- treeio::read.mrbayes(contree)
-
-    suppressMessages({
-        require(ggtree)
-        require(treeio)
-        require(ggtext)
-        require(aplot) 
-        require(ggnewscale)
-        require(grid)
-        require(gridExtra)
-        require(ggpubr)
-    })
 
     # Set node no. as numeric for later reroot operation
     tree@data$node <- as.numeric(tree@data$node)
@@ -158,7 +185,7 @@ visualize_tree <- function(assets_date, outgroup, subfolder = "", xfac = 1.5) {
             hjust = 1, 
             size = 3.5) +
         geom_rootedge(rootedge = 0.02) +
-        xlim(c(0, tree[["xmax"]]*xfac)) +
+        xlim(c(0, tree[["xmax"]]*xlim.factor)) +
         geom_treescale(x = 0, y = 0)
     return(tree.viz)
 }

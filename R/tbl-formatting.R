@@ -1,3 +1,5 @@
+#' Format Specimen Metadata
+#' @import dplyr
 format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T) {
     if (!formatting) { # way to escape
         return(tbl)
@@ -30,6 +32,8 @@ format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T) {
         return()
 } 
 
+#' Format NCBI Sequence Metadata
+#' @import dplyr
 format_metadata.Sequence.NCBI <- function(tbl, formatting = T, format = 1) {
     if (!formatting) { # way to escape
         return(tbl)
@@ -50,6 +54,8 @@ format_metadata.Sequence.NCBI <- function(tbl, formatting = T, format = 1) {
     return(tbl.format)
 }
 
+#' Format Station Metadata
+#' @import dplyr
 format_metadata.Station <- function(tbl, formatting = T) {
     tbl.format <- tbl %>%
         mutate(
@@ -64,6 +70,7 @@ format_metadata.Station <- function(tbl, formatting = T) {
 
 #' Format morphocheck result
 #' @import stringr
+#' @import dplyr
 format_morphocheck <- function(tbl) {
     tbl %>% mutate(
         ON_morpho_ZH = gsub("\\.", "", ON_morpho_ZH),

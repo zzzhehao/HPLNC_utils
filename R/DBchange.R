@@ -1,3 +1,13 @@
+#' Generate Signature for Database Change
+#' 
+#' @param table Table name subjected to change
+#' @param type Change type
+#' @param request Request ID
+#' @param con Connection to database as produced by `DBI::dbConnect()`
+#' @param time Time of change. Default to current time.
+#' @param signature.table Table name to write signature. 
+#' @import DBI
+#' @import RSQLite
 DBchange_sign <- function(table, type, msg, request = request.id, con = dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite"), time = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"), signature.table = "signature") {
     if (!type %in% c("Initial", "Append", "Amend", "Del", "Hard", "Manual")) {
         stop(paste0("Unaccepted type: ", type))
@@ -13,15 +23,16 @@ DBchange_sign <- function(table, type, msg, request = request.id, con = dbConnec
     }
 }
 
+#' Execute YAML Change Request
+#' 
+#' @import yaml
+#' @import rlist
+#' @import glue
+#' @import rlang
+#' @import tidyverse
+#' @import DBI
+#' 
 DBexecute <- function(request.filename) {
-
-    library(yaml)
-    library(rlist)
-    library(glue)
-    library(rlang)
-    library(tidyverse)
-    library(DBI)
-    
     request.file <- paste0("data/metadata/request/", request.filename, ".yaml")
     
     requests <- yaml.load_file(request.file) %>% 
@@ -139,10 +150,12 @@ DBexecute <- function(request.filename) {
     dbDisconnect(HPLNCdb)
 }
 
+#' Pull Raw Table
+#' 
+#' @param table Table name.
+#' @import tidyverse
+#' @import DBI
 DBmanual_pull <- function(table) {
-    require(tidyverse)
-    require(DBI)
-
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
     tbl <- tbl(HPLNCdb, table) %>% collect() 
@@ -150,10 +163,16 @@ DBmanual_pull <- function(table) {
     return(tbl)
 }
 
+#' Write Table
+#' 
+#' @param tbl Table object to write.
+#' @param table Table name.
+#' @param msg Change message.
+#' @param request.id Request ID associated to this change.
+#' 
+#' @import tidyverse
+#' @import DBI
 DBmanual_write <- function(tbl, table, msg, request.id) {
-    require(tidyverse)
-    require(DBI)
-
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
     DBchange_sign(table, "Manual", msg, request.id)
