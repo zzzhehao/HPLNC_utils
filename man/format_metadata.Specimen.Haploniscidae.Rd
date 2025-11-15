@@ -4,7 +4,10 @@
 \alias{format_metadata.Specimen.Haploniscidae}
 \title{Format Specimen Metadata}
 \usage{
-format_metadata.Specimen.Haploniscidae(tbl, formatting = T)
+format_metadata.Specimen.Haploniscidae(tbl, formatting = T, format = 1)
+}
+\arguments{
+\item{format}{numerical. Formatting options. 0 for not including morphocheck result. Default to 1.}
 }
 \description{
 Format Specimen Metadata

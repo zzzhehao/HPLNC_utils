@@ -106,73 +106,110 @@ midwayTreeViz <- function(assets_date, outgroup, subfolder = "", treeviz = T, xl
     return(tree.viz)
 }
 
-#' Visualize Consensus Tree Produced From MrBayes Analysis
+#' Read MrBayes Output Consensus Tree
 #' 
-#' @param assets_date Date of the asset folder where the MrBayes analysis process is located in. This is a project-specific data structure adaptation. It just simplifies the location of the target files. 
-#' @param outgroup Sequence labels of the outgroup sequences. It will use automatic gap detection to find the sequences so it allows a certain degree of ambiguity in the name. 
-#' @param subfolder Subfolder where the MrBayes process is located under the asset folder of the date. This is a project-specific data structure adaptation. It just simplifies the location of the target files. 
-#' @param xlim.factor Factor to expand the x-axis of the tree. Increase this value if long labels are omitted because they exceed the plotting area.
+#' @importFrom treeio read.mrbayes
+#' @import dplyr
 #' 
-#' @import ggtree
-#' @import treeio
-#' @import ggtext
-#' @import aplot
-#' @import ggnewscale
-#' @import grid
-#' @import gridExtra
-#' @import ggpubr
-#' 
-#' @return A ggplot of visualized tree.
-visualize_tree <- function(assets_date, outgroup, subfolder = "", xlim.factor = 1.5) {
+#' @param assets_date For locating asset folder.
+#' @param subfolder Subfolder path within the daily log asset folder.
+#' @return A tidytree treedata object.
+read_contree <- function(assets_date, subfolder) {
     assets_path <- paste("docs/logs/assets", assets_date, subfolder, sep = "/") %>% gsub("/$", "", .)
     contree <- list.files(assets_path, pattern = "\\.con\\.tre$", full.names = T)
     if (length(contree) > 1) {stop("Multiple `.con.tre` files.")}
     tree <- treeio::read.mrbayes(contree)
+    return(tree)
+}
 
+#' Relabel Tree's Tip Labels 
+#' 
+#' @param tree A tidytree treedata object.
+#' @return A relabeled tidytree treedata object.
+#' 
+#' @import dplyr
+#' @import tidyr
+#' @import purrr
+tree_relabel <- function(tree) {
+    specmeta <- db_pull("metadata.Specimen.Haploniscidae")
+    tip.label.fmt <- tree@phylo$tip.label %>% 
+        # gsub("^VPS|^ZHH", "", .) %>% # remove voucher prefix
+        data.frame(identifier = .)
+    sequence.map <- db_pull("sequence.map", F, F)
+
+    specmeta.label <- specmeta %>% 
+        dplyr::select(c("voucher", "gensp_morpho_ZH")) %>% 
+        dplyr::filter(!is.na(voucher)) %>%
+        mutate(
+            c_organism_id = str_pad(as.character(voucher), 3, "left", "0"), 
+            c_organism_label = gensp_morpho_ZH,
+            .keep = "none")
+
+    sequence.map.LUT <- sequence.map %>%
+        rows_update(specmeta.label, by = "c_organism_id") %>%
+        pivot_longer(starts_with("c_gene_"), names_to = "gene", values_to = "identifier") %>% 
+        dplyr::select(c("identifier", "c_organism_id", "c_organism_label"))
+        
+
+    sequence.map.LUT.IDivA <- sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[0-9]{3}_.{3}$"))
+
+    sequence.map.LUT <- list(
+        sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[0-9]{3}_.{3}$", T)),
+        sequence.map.LUT.IDivA %>% mutate(identifier = paste0("VPS", identifier)),
+        sequence.map.LUT.IDivA %>% mutate(identifier = paste0("ZHH", identifier))
+    ) %>%
+        purrr::reduce(bind_rows) %>%
+        filter(!is.na(identifier)) %>% 
+        mutate(c_organism_label = case_when(str_detect(identifier, "^[A-Z]{3}[0-9]{3}_") ~ paste(c_organism_label, gsub("_.{3}$", "", identifier), sep = "_"), .default = c_organism_label))
+    tip.label.LUT <- left_join(tip.label.fmt, sequence.map.LUT)
+
+    tree@phylo$tip.label <- map_values(tree@phylo$tip.label, tip.label.LUT, identifier, c_organism_label) # a new function to update values according to a LUT dataframe
+    return(tree)
+}
+
+#' Reroot Consensus Tree Produced by MrBayes
+#'  
+#' @param tree A tidytree treedata object.
+#' @param outgroup Name of the outgroup that can be used to find all outgroup taxa. The name will be matched against tip label of the tree, and the best matching labels are used as outgroup. This argument will be ignored if `outgroups` is given.
+#' @param outgroups A vector of characters that contains all taxa labels of the outgroups. 
+#' 
+#' @details
+#' A proper rerooting is currently only guaranteed for consensus tree produced by MrBayes, due to inconsistent usage of the branch support value across variety of phylogenetic analysis programs. Detaisl see Czech et al. 2017.
+#' 
+#' @return A rerooted tidytree treedata object.
+#' 
+#' @references Czech, L., Huerta-Cepas, J. and Stamatakis, A. (2017) “A Critical Review on the Use of Support Values in Tree Viewers and Bioinformatics Toolkits,” Molecular Biology and Evolution, 34(6), pp. 1535–1542. Available at: https://doi.org/10.1093/molbev/msx055.
+#' 
+#' @import ape
+tree_reroot <- function(tree, outgroup, outgroups = NULL) {
     # Set node no. as numeric for later reroot operation
     tree@data$node <- as.numeric(tree@data$node)
 
-    # Find exact name of outgroup (automatic gap detection)
-    name.dist <- stringdist::stringdistmatrix(tree@phylo$tip.label, outgroup) %>% as.numeric() 
-    name.dist.sorted <- name.dist %>% sort()
-    weights <- 1/log(name.dist.sorted[-1]+1) # weight gap significance decreasingly while upper value of the gap increases
-    maxGapIndex.sorted <- diff(name.dist.sorted)*weights %>% which.max()
-    threshold <- mean(name.dist.sorted[c(maxGapIndex.sorted, maxGapIndex.sorted+1)]) # identify the threshold of the gap
-    outgroup.match <- tree@phylo$tip.label[name.dist < threshold]
+    if (is.null(outgroups)) {
+        outgroups <- find_best_match(outgroup, tree@phylo$tip.label, silent = T)
+        cat("\nOutgroup given as:", outgroup, "\nMatched", outgroups, "\n\n")
+    }
 
-    cat("\nOutgroup given as:", outgroup, "\nMatched", outgroup.match, "\n\n")
-    tree.rt <- ape::root(tree, outgroup.match, resolve.root = T, edgelabel = F)
+    tree.rt <- ape::root(tree, outgroups, resolve.root = T, edgelabel = F)
 
-# relableling
+    tree.rt@phylo$tip.label <- tree@phylo$tip.label # previous ape::root will turn tree.rt tip label into sequencial numbers, but the order doesn't change, therefore simply glueing the original label 
+    return(tree.rt)
+}
 
-    tree.rt@phylo$tip.label <- tree@phylo$tip.label
-    sequence.map <- DBpullTable("sequence.map", F, F)
-    LUT.label <- sequence.map$c_organism_label
-    names(LUT.label) <- sequence.map$COI
-
-    # Fill VPS labels
-
-    specmeta <- DBpullTable("metadata.Specimen.Haploniscidae")
-
-    specmeta.label <- specmeta %>% 
-        mutate(label = paste(
-            voucher, gensp_morphology
-        ))
-
-    LUT.vpslabel <- specmeta.label$label
-    names(LUT.vpslabel) <- specmeta.label$voucher
-
-    LUT.label[str_detect(LUT.label, "^VPS")] <- LUT.vpslabel[LUT.label[str_detect(LUT.label, "^VPS")]]
-
-    tree.rt@phylo$tip.label <- LUT.label[tree.rt@phylo$tip.label]
-
+#' Visualize Phylogenetic Tree
+#' 
+#' @param tree A tree for visualization.
+#' @param xlim.factor A factor to expand the x axis.
+#' @import treeio
+#' @import ggtree
+#' 
+#' @return A ggtree object.
+tree_visualize <- function(tree, xlim.factor = 1.5) {
     # tree manipulation
-
-    tree.rt.sc <- rescale_tree(tree.rt, "length_mean")
-    xmax <- max(c(tree.rt.sc@phylo$edge.length, tree@phylo$edge.length))
-    tree <- list(tree = tree.rt.sc, xmax = xmax)
-
-    tree.viz <- ggtree(tree[["tree"]], layout="rectangular") +
+    tree.sc <- rescale_tree(tree, "length_mean")
+    xmax <- max(tree.sc@phylo$edge.length)
+    tree.ls <- list(tree = tree.sc, xmax = xmax)
+    tree.viz <- ggtree(tree.ls[["tree"]], layout="rectangular") +
         geom_tiplab(
             parse = F,
             nudge_x = 0.003, 
@@ -185,7 +222,32 @@ visualize_tree <- function(assets_date, outgroup, subfolder = "", xlim.factor = 
             hjust = 1, 
             size = 3.5) +
         geom_rootedge(rootedge = 0.02) +
-        xlim(c(0, tree[["xmax"]]*xlim.factor)) +
+        xlim(c(0, tree.ls[["xmax"]]*xlim.factor)) +
         geom_treescale(x = 0, y = 0)
     return(tree.viz)
+}
+
+#' Wrapper for Full Consensus Tree Visualization Process
+#' 
+#' @param assets_date For locating asset folder.
+#' @param subfolder Subfolder path within the daily log asset folder.
+#' @param outgroup Name of the outgroup that can be used to find all outgroup taxa. The name will be matched against tip label of the tree, and the best matching labels are used as outgroup. This argument will be ignored if `outgroups` is given.
+#' @param outgroups A vector of characters that contains all taxa labels of the outgroups. 
+#' @param xlim.factor A factor to expand the x axis.
+#' @param width SVG width.
+#' @param height SVG height.
+#' 
+#' @import ggpubr
+#' @return The path leading to written svg file of the tree.
+tree_eval <- function(assets_date, subfolder = "", outgroup, outgroups = NULL, xlim.factor = 1.5, width = 15, height = 30) {
+    tree <- read_contree(assets_date, subfolder)
+    tree <- tree_relabel(tree)
+    tree.rt <- tree_reroot(tree, outgroup)
+
+    tree.viz <- tree_visualize(tree.rt, xlim.factor)
+
+    assets_path <- paste("docs/logs/assets", assets_date, subfolder, sep = "/") %>% gsub("/$", "", .)
+    path <- paste0(assets_path, "/contree.svg")
+    ggsave(path, tree.viz, width = width, height = height)
+    return(path)
 }

@@ -8,14 +8,21 @@
 #' @import stringr
 #' @return A new FASTA file will be written in the same directory. The path to the new file will be returned.
 clean_label <- function(fasta_path){
-    genes <- c("COI", "18S", "28S")
+    genes <- c("COI", "18S", "28S", "16S")
     gene <- genes[str_detect(basename(fasta_path), paste(genes, sep = "|"))]
     aln <- ape::read.FASTA(fasta_path) 
     names(aln) <- names(aln) %>%
+        # VPS formatting
         ifelse(
             str_detect(., "^VPS[0-9]{3}"), 
             str_extract(., "^VPS[0-9]{3}") %>% paste0(., "_", gene), 
             .) %>%
+        # ZHH formatting
+        ifelse(
+            str_detect(., "^ZHH[0-9]{3}"), 
+            str_extract(., "^ZHH[0-9]{3}") %>% paste0(., "_", gene), 
+            .) %>%
+        # NCBI accession number formatting (to primary)
         ifelse(str_detect(., "\\.1$"), gsub("\\.1$", "", .), .)
     new_fasta_path <- paste0(dirname(fasta_path), "/", gsub("\\.fasta$", "", basename(fasta_path)), "_cleaned.fasta")
     ape::write.FASTA(aln, new_fasta_path)
@@ -40,7 +47,7 @@ clean_label <- function(fasta_path){
 #' @import ape
 #' 
 #' @return Trimmed alignment will be written in new FASTA file under the same directory with suffix `_gbtrimmed.fasta`. The path to the new file will be returned.
-gblocks <- function(fasta_path, gblocks_path = "/Users/hu_zhehao/Desktop/Biology-tools/Gblocks_0.91b/Gblocks", t="d", b1="min", b2="min", b3=20, b4=2, b5="a", args=""){
+exe_gblocks <- function(fasta_path, gblocks_path = "/Users/hu_zhehao/Desktop/Biology-tools/Gblocks_0.91b/Gblocks", t="d", b1="min", b2="min", b3=20, b4=2, b5="a", args=""){
     MSA.dirname <- dirname(fasta_path)
     genes <- c("18S", "28S")
     gene <- genes[str_detect(basename(fasta_path), paste(genes, sep = "|"))]
@@ -92,7 +99,7 @@ gblocks <- function(fasta_path, gblocks_path = "/Users/hu_zhehao/Desktop/Biology
 #' @param safe_name logical. Whether to modify the name to remove "_".
 #' @param remove_outgroup Vector of sequence labels to remove. Default to `NULL` without removing any sequence. This happens before modifying sequence labels if `safe_name` is set to TRUE.
 #' @return The FASTA file will be written in the same directory. The path will be returned.
-nexus2fasta <- function(nexus_path, fasta_path=NULL, safe_name=F, remove_outgroup=NULL) {
+convert_nexus2fasta <- function(nexus_path, fasta_path=NULL, safe_name=F, remove_outgroup=NULL) {
     if (is.null(fasta_path)) {fasta_path <- gsub("\\.nexus$", ".fasta", nexus_path)}
     aln <- ape::read.nexus.data(nexus_path) %>% ape::as.DNAbin()
 

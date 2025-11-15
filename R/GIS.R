@@ -6,7 +6,7 @@
 #' @param dms DMS or DDM coordinates. This is a vectorized function, which means you can either pass one character that is latitude or longitude coordinates, or you can pass a vector of those. But not both latitude and longitude at the same time, it only handles one vector at a time. 
 #' @return Converted decimal degree coordinates, ready to use. 
 #' 
-dms_to_decimal <- function(dms) {
+gis_convert_dms2dd <- function(dms) {
     dms <- as.vector(dms)
     dms <- gsub(' ', '', dms)
     dms <- gsub('′', "'", dms)
@@ -41,7 +41,7 @@ dms_to_decimal <- function(dms) {
 #' Format decimal degree coordinates notated with letters to clean numerical coordinates. West and south with minus.
 #' @param dec DD coordinates. This is a vectorized function, which means you can either pass one character that is latitude or longitude coordinates, or you can pass a vector of those. But not both latitude and longitude at the same time, it only handles one vector at a time. 
 #' 
-dec_format <- function(dec) {
+gis_format_DD <- function(dec) {
     dec <- as.vector(dec)
     neg <- grepl(regex("S|W", ignore_case = T), dec)
     dec <- gsub(regex('[[:alpha:]]', ignore_case = T), "", dec) %>% as.numeric()
@@ -180,7 +180,7 @@ geom_checkerboard <- function(min.lat, max.lat, lat.interval.count, min.long, ma
 #' 
 #' @param cache Logical. Default to TRUE, the function will generate cache for the exact same boundary for future reuse. 
 #' @import readr
-fetch.NOAA.bathy <- function(boundaries, resolution = 5, cache = T) {
+fetch_noaa_bathy <- function(boundaries, resolution = 5, cache = T) {
     require(marmap)
     require(scales)
 
@@ -224,7 +224,7 @@ fetch.NOAA.bathy <- function(boundaries, resolution = 5, cache = T) {
 #' 
 #' @export
 #' 
-fetch.land.elv <- function(boundaries, crs = 4326, z = 3, cache = T) {
+fetch_land_elv <- function(boundaries, crs = 4326, z = 3, cache = T) {
     filename <- paste0("data/cache/landelev_", paste0(boundaries, z, collapse = ""), ".rds")
     if (filename %in% list.files("data/cache", full.names = T)) {
         land_elev.df <- readRDS(filename)
@@ -278,7 +278,7 @@ fetch.land.elv <- function(boundaries, crs = 4326, z = 3, cache = T) {
 #'
 #' @export
 #'
-bathy.basemap <- function(
+plot_basemap_bathy <- function(
     boundaries = list(0, -100, 75, 20), 
     vertical.tiles = 5,
     horizontal.tiles = 5,
@@ -300,7 +300,7 @@ bathy.basemap <- function(
     } else {
         bathy <- ggplot() +
             geom_tile(
-                data = fetch.NOAA.bathy(boundaries, resolution = resolution), aes(x, y, fill = z))
+                data = fetch_noaa_bathy(boundaries, resolution = resolution), aes(x, y, fill = z))
 
         if (bathy.clr) {
             bathy <- bathy +
@@ -318,7 +318,7 @@ bathy.basemap <- function(
         if (land) {
             bathy <- bathy +
                 geom_tile(
-                    data = fetch.land.elv(boundaries, crs, z), 
+                    data = fetch_land_elv(boundaries, crs, z), 
                     aes(x = x, y = y, fill = Elevation), 
                     show.legend = F
                 ) +

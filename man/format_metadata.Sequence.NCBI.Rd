@@ -4,7 +4,7 @@
 \alias{format_metadata.Sequence.NCBI}
 \title{Format NCBI Sequence Metadata}
 \usage{
-format_metadata.Sequence.NCBI(tbl, formatting = T, format = 1)
+format_metadata.Sequence.NCBI(tbl, formatting = T, format = 0)
 }
 \description{
 Format NCBI Sequence Metadata

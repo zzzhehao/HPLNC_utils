@@ -8,7 +8,7 @@
 #' @param signature.table Table name to write signature. 
 #' @import DBI
 #' @import RSQLite
-DBchange_sign <- function(table, type, msg, request = request.id, con = dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite"), time = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"), signature.table = "signature") {
+db_sign <- function(table, type, msg, request = request.id, con = dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite"), time = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"), signature.table = "signature") {
     if (!type %in% c("Initial", "Append", "Amend", "Del", "Hard", "Manual")) {
         stop(paste0("Unaccepted type: ", type))
     }
@@ -32,7 +32,7 @@ DBchange_sign <- function(table, type, msg, request = request.id, con = dbConnec
 #' @import tidyverse
 #' @import DBI
 #' 
-DBexecute <- function(request.filename) {
+db_exe_request <- function(request.filename) {
     request.file <- paste0("data/metadata/request/", request.filename, ".yaml")
     
     requests <- yaml.load_file(request.file) %>% 
@@ -142,7 +142,7 @@ DBexecute <- function(request.filename) {
             }
         }
         
-        DBchange_sign(table, type, msg, request.id)
+        db_sign(table, type, msg, request.id)
         dbWriteTable(HPLNCdb, table, target.updated, overwrite = T)
     })
 
@@ -155,7 +155,7 @@ DBexecute <- function(request.filename) {
 #' @param table Table name.
 #' @import tidyverse
 #' @import DBI
-DBmanual_pull <- function(table) {
+db_pull_raw <- function(table) {
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
     tbl <- tbl(HPLNCdb, table) %>% collect() 
@@ -172,10 +172,104 @@ DBmanual_pull <- function(table) {
 #' 
 #' @import tidyverse
 #' @import DBI
-DBmanual_write <- function(tbl, table, msg, request.id) {
+db_write <- function(tbl, table, msg, request.id) {
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
-    DBchange_sign(table, "Manual", msg, request.id)
+    db_sign(table, "Manual", msg, request.id)
     dbWriteTable(HPLNCdb, table, tbl, overwrite = T)
     dbDisconnect(HPLNCdb)
 }
+
+#' Generate Snapshot from All Tables
+#' @import DBI
+#' @import tidyverse
+#' @import RSQLite
+db_snapshot <- function() {
+
+    library(tidyverse)
+    library(DBI)
+
+    HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
+
+    dir <- paste0("data/metadata/latest/", format(Sys.time(), "%Y%m%d_%H%M%S"), "/")
+    dir.create(dir)
+
+    table <- dbListTables(HPLNCdb)
+    table <- table[table != "signature"]
+
+    walk(table, \(tbl.name) {
+        tbl <- tbl(HPLNCdb, tbl.name) %>% collect()
+    
+        write.table(
+            tbl, 
+            paste0(
+                dir,
+                tbl.name, 
+                ".csv"), 
+            sep = ";", 
+            row.names = F, 
+            col.names = T)
+    })
+
+    signature <- tbl(HPLNCdb, "signature") %>% collect()
+    write.table(signature, paste0(dir, "signature.csv"), sep = ";", row.names = F, col.names = T)
+    dbDisconnect(HPLNCdb)
+}
+
+#' Return Signature of the Last Request
+#' @import DBI
+#' @import tidyverse
+#' @import RSQLite
+db_show_last_request <- function() {
+    HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
+
+    lastRequest <- tbl(HPLNCdb, "signature") %>% collect() %>% arrange(desc(requestId)) %>% pull(requestId) %>% .[1]
+
+    return(lastRequest)
+    dbDisconnect(HPLNCdb)
+}
+
+#' Pull Table
+#' @param table Table name. Type "show_table" to display all available table names in database.
+#' @param cleaned Clean table, rows marked in `del` column will be dropped.
+#' @param formatting Format table. Utilize table-specific formatting function to format the table if available. Formatting functions are always named under the rule `format_` + table name. 
+#' @param format Argument to pass over to formatting functions. If available different formatting could be chosen.
+#' 
+#' @import tidyverse
+#' @import DBI
+#' @import RSQLite
+db_pull <- function(table, cleaned = T, formatting = T, format = NULL) {
+    HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
+
+    if (table == "show_table") {
+        print(dbListTables(HPLNCdb))
+        return("Show tables only.")
+    }
+    tbl <- tbl(HPLNCdb, table) %>% collect() 
+
+    if (cleaned) {
+        if ("del" %in% colnames(tbl)) {
+            tbl <- tbl %>%
+                dplyr::filter(is.na(del)) %>% 
+                dplyr::select(-c("del"))
+        }
+    }
+
+    if (formatting) {
+        tbl_formatter <- paste0("format_", table) 
+        if (tbl_formatter %in% ls("package:HPLNC")) { # check availability of formatting function
+            print(paste0("Found formatter: ", tbl_formatter))
+            if (is.null(format)) {
+                format <- ""
+            } else {
+                format <- paste0(", format = ", format)
+            }
+            print(paste0("Executing: ", tbl_formatter, "(tbl, formatting = T", format, ")"))
+            tbl <- paste0(tbl_formatter, "(tbl, formatting = T", format, ")") %>%
+                rlang::parse_expr() %>%
+                rlang::eval_tidy()
+        }
+    }
+    return(tbl)
+}
+

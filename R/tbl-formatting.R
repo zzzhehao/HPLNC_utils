@@ -1,13 +1,16 @@
 #' Format Specimen Metadata
+#' 
+#' @param format numerical. Formatting options. 0 for not including morphocheck result. Default to 1.
+#' 
 #' @import dplyr
-format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T) {
+format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T, format = 1) {
     if (!formatting) { # way to escape
         return(tbl)
     }
 
     print("Formatting...")
 
-    tbl %>% mutate(
+    tbl.fmt <- tbl %>% mutate(
         # formatting only
         station = factor(station),
         gear = factor(gear),
@@ -28,25 +31,29 @@ format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T) {
         # calculation
         gensp_morphology = factor(paste(genus_morphology, species_morphology)),
         voucher_valid = ifelse(!is.na(voucher), paste0(voucher_prefix, str_pad(voucher, 3, "left", "0")), NA)
-    ) %>%
-        return()
+    )
+    if (format > 0) {
+        morphometa <- load_morphocheck()
+        tbl.fmt <- left_join(tbl.fmt, morphometa %>% dplyr::select(c("DZMB2HH", "sex_ZH", "stage_ZH", "n", "gensp_morpho_ZH")), by = "DZMB2HH")
+    }
+    return(tbl.fmt)
 } 
 
 #' Format NCBI Sequence Metadata
 #' @import dplyr
-format_metadata.Sequence.NCBI <- function(tbl, formatting = T, format = 1) {
+format_metadata.Sequence.NCBI <- function(tbl, formatting = T, format = 0) {
     if (!formatting) { # way to escape
         return(tbl)
     }
     
     print("Formatting...")
     # Relevant sequence only
-    if (format == 1) {
+    if (format == 0) {
         tbl.format <- tbl %>% 
             dplyr::filter(c_filter_1 & c_filter_2)
     }
     # Custom columns only
-    if (format == 2) {
+    if (format == 1) {
         tbl.format <- tbl %>% 
             dplyr::select(starts_with("c_"), -contains("filter"))
     }

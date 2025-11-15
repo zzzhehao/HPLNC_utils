@@ -3,7 +3,8 @@
 #' @param xml File path to `xml` file
 #' @return A data.frame of flattened tabular metadata.
 #' @import rlist
-#' @import tidyverse
+#' @import dplyr
+#' @import tidyr
 #' @import XML
 #' @import xml2
 extract_INSD_metadata <- function(xml) {
@@ -69,7 +70,7 @@ extract_INSD_metadata <- function(xml) {
         INSDMetadata <-
         bind_cols(primary.info, feature.table, ref.table) %>%
         dplyr::rename("INSDSeq_primary-accession" = "`INSDSeq_primary-accession`") %>%
-        select(-contains("db_xref"))
+        dplyr::select(-contains("db_xref"))
     })
     return(INSDMetadata)
 }
@@ -142,7 +143,7 @@ update_INSD_metadata <- function(XML_folder = "data/sequence/INSD", regenerate =
         if (regenerate) {
             print("Overwriting INSD metadata ... (regenerate = T)")
             dbWriteTable(HPLNCdb, "metadata.Sequence.NCBI", tbl.INSD, overwrite = T)
-            DBchange_sign(
+            db_sign(
                 "metadata.Sequence.NCBI", 
                 "Hard", 
                 "INSD metadata of NCBI sequences has been regenerated.", 
@@ -156,7 +157,7 @@ update_INSD_metadata <- function(XML_folder = "data/sequence/INSD", regenerate =
             dplyr::filter(!`INSDSeq_primary-accession` %in% INSD.registered$`INSDSeq_primary-accession`)
         INSD.updated <- bind_rows(INSD.registered, INSD.new) 
         dbWriteTable(HPLNCdb, "metadata.Sequence.NCBI", INSD.updated, overwrite = T)
-        DBchange_sign(
+        db_sign(
             "metadata.Sequence.NCBI", 
             "Append", 
             "INSD metadata of NCBI sequences has been updated.", 

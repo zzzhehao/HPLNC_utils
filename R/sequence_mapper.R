@@ -3,23 +3,26 @@
 #' @description
 #' This will summarize the sequence labels in the way that the sequnces originated from the same vouchered animals could be linked together, which is essential for concatenate multilocus alignment. 
 #' 
-#' @import DBI
-#' @import tidyverse
-#' @import RSQLite
 #' @return Nothing. A data.frame will be written into the database. 
 #' @param regenerate logical. Whether to overwrite existing table in the database. Otherwise only the rows with vouchered animal not yet in the database will be added. 
+#' @import DBI
+#' @import dplyr
+#' @import RSQLite
+#' @import tidyr
+#' @import stringr
 update_sequence_map <- function(regenerate = F){
     # Generate wide table
-    metadata.seq <- DBpullTable("metadata.Sequence.NCBI", F, F)
-    sequence.map.ncbi <- metadata.seq %>% pivot_wider(id_cols = c_organism_id, names_from = c_gene, values_from = `INSDSeq_primary-accession`)
+    metadata.seq <- db_pull("metadata.Sequence.NCBI", F, F)
+    sequence.map.ncbi <- metadata.seq %>% filter(!is.na(c_gene)) %>% pivot_wider(id_cols = c_organism_id, names_from = c_gene, names_prefix = "c_gene_", values_from = `INSDSeq_primary-accession`)
 
     # Combine with vps names
-    allvps <- DBpullTable("metadata.Specimen.Haploniscidae") %>% pull(voucher) %>% sort()
+    allvps <- db_pull("metadata.Specimen.Haploniscidae") %>% pull(voucher) %>% sort() %>% as.character() %>% str_pad(3, "left", "0")
     vps.map <- data.frame(c_organism_id = allvps) %>%
     mutate(
-        COI = paste0(c_organism_id, "_COI"),
-        `18S` = paste0(c_organism_id, "_18S"),
-        `28S` = paste0(c_organism_id, "_28S"),
+        c_gene_COI = paste0(c_organism_id, "_COI"),
+        c_gene_16S = paste0(c_organism_id, "_16S"),
+        c_gene_18S = paste0(c_organism_id, "_18S"),
+        c_gene_28S = paste0(c_organism_id, "_28S"),
     ) 
 
     sequence.map <- bind_rows(sequence.map.ncbi, vps.map)
@@ -49,13 +52,13 @@ update_sequence_map <- function(regenerate = F){
             dbDisconnect(HPLNCdb)
             return()
         }
-        sequence.map.registered <- DBpullTable("sequence.map", F, F)
+        sequence.map.registered <- db_pull("sequence.map", F, F)
 
         sequence.map.new <- sequence.map %>% 
             dplyr::filter(!c_organism_id %in% sequence.map.registered$c_organism_id)
         sequence.map.updated <- bind_rows(sequence.map.registered, sequence.map.new) 
         dbWriteTable(HPLNCdb, "sequence.map", sequence.map.updated, overwrite = T)
-        DBchange_sign(
+        db_sign(
             "sequence.map", 
             "Append", 
             "Sequence map (accession number of each specimen voucher) has been updated.", 

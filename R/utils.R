@@ -11,19 +11,19 @@ date2assets <- function(date) {
 #' Query specimen info with DZMB2HH ID
 #' @importFrom dplyr %>%
 #' @importFrom dplyr filter
-ID.inquery <- function(ID) {
-    DBpullTable("metadata.Specimen.Haploniscidae") %>% filter(DZMB2HH %in% ID) %>% t()
+inquery_id <- function(ID) {
+    db_pull("metadata.Specimen.Haploniscidae") %>% filter(DZMB2HH %in% ID) %>% t()
 }
 
 #' Query specimen info with voucher
 #' @importFrom dplyr %>%
 #' @importFrom dplyr filter
-voucher.inquery <- function(ID) {
-    DBpullTable("metadata.Specimen.Haploniscidae") %>% filter(voucher %in% ID) %>% t()
+inquery_voucher <- function(ID) {
+    db_pull("metadata.Specimen.Haploniscidae") %>% filter(voucher %in% ID) %>% t()
 }
 
 #' Clear temporary cache file of R
-clearRCache <- function() {
+clear_r_cache <- function() {
     unlink(tempdir(), recursive = TRUE)
     dir.create(tempdir())
 }
@@ -65,6 +65,8 @@ load_morphocheck <- function() {
 
 #' Generate Species Summary
 #' @import ggtext
+#' @import ggplot2
+#' @import dplyr
 summary_sp <- function(df, metadata.station, metadata.specimen, species) {
     palette <- c(paletteer::paletteer_d("nationalparkcolors::Badlands")[3], "#d5d5d5")
     names(palette) <- c("TRUE", "FALSE")
@@ -127,7 +129,7 @@ summary_sp <- function(df, metadata.station, metadata.specimen, species) {
             )
         )
 
-    map <- bathy.basemap(resolution = 10) +
+    map <- plot_basemap_bathy(resolution = 10) +
         ggnewscale::new_scale_fill() +
         ggnewscale::new_scale_color() +
         geom_point(
@@ -169,10 +171,12 @@ summary_sp <- function(df, metadata.station, metadata.specimen, species) {
 #' 
 #' @import kableExtra
 #' @import ggpubr
+#' @import purrr
+#' @import dplyr
 create_summary_sp <- function() {
     suppressMessages({suppressWarnings({
-        metadata <- DBpullTable("metadata.Specimen.Haploniscidae")
-        metadata.ebs <- DBpullTable("metadata.Station")
+        metadata <- db_pull("metadata.Specimen.Haploniscidae")
+        metadata.ebs <- db_pull("metadata.Station")
         morphocheck <- load_morphocheck()
     
         metadata.merge <- left_join(metadata, metadata.ebs %>% dplyr::select(c("station", "latStartDec", "longStartDec", "depthZone", "area_abbr_ZH")), by = "station") %>%
@@ -224,4 +228,50 @@ create_summary_sp <- function() {
         )
         cat("\n \\pagebreak \n\n")
     })
+}
+
+#' Map a vector's values using a lookup table
+#'
+#' @param input_vector The vector of original values
+#' @param lut_df The lookup data frame
+#' @param key_col The unquoted column name in `lut_df` to match against.
+#' @param value_col The unquoted column name in `lut_df` to get the new values from.
+#'
+#' @import dplyr
+#' @import rlang
+#' @return A new vector with the mapped values, in the same order as the input.
+map_values <- function(input_vector, lut_df, key_col, value_col) {
+
+    key_col_string <- rlang::as_name(rlang::enquo(key_col))
+    temp_df <- tibble({{ key_col }} := input_vector)
+    temp_df %>%
+        left_join(lut_df, by = key_col_string) %>%
+        pull({{ value_col }})
+}
+
+#' Find Best Match in A Vector of Strings using Automatic Gap Detection
+#' 
+#' @author Zhehao Hu
+#' 
+#' @import stringdist
+#' 
+#' @param pattern A pattern to look for.
+#' @param strings A vector of strings to look for the pattern.
+#' @param index Logical. Whether to return index of the best matching item in the string vector (TRUE) or return the best matching item value (FALSE).
+#' @param silent Logical. Set to TRUE to disable result printing.
+find_best_match <- function(pattern, strings, index = F, silent = F) {
+    name.dist <- stringdist::stringdistmatrix(strings, pattern) %>% as.numeric() 
+    name.dist.sorted <- name.dist %>% sort()
+    weights <- 1/log(name.dist.sorted[-1]+1) # weight gap significance decreasingly while upper value of the gap increases
+    maxGapIndex.sorted <- diff(name.dist.sorted)*weights %>% which.max()
+    threshold <- mean(name.dist.sorted[c(maxGapIndex.sorted, maxGapIndex.sorted+1)]) # identify the threshold of the gap
+    pattern.match <- strings[name.dist < threshold]
+
+    cat("\nPattern given as:", pattern, "\nMatched", pattern.match, "\n\n")
+
+    if (index) {
+        return(which(name.dist < threshold))
+    } else {
+        return(pattern.match)
+    }
 }
