@@ -54,13 +54,8 @@ library(tidyverse)
 #' 
 #' @import readxl
 load_morphocheck <- function() {
-<<<<<<< HEAD
-    morphocheck <- readxl::read_xlsx("docs/notes/assets/sandbox/ZHH_morphocheck.xlsx", range = readxl::cell_cols("A:O"))
-    file_path <- paste0("data/metadata/archive/morphocheck_", as.character(format(today(), "%Y%m%d"))) # make archive
-=======
     morphocheck <- readxl::read_xlsx("docs/notes/assets/sandbox/ZHH_morphocheck.xlsx", range = readxl::cell_cols("A:R"))
     file_path <- paste0("data/metadata/archive/morphocheck_", as.character(format(today(), "%Y%m%d")), ".csv") # make archive
->>>>>>> 94dea4a (pacs: function update)
     write.table(morphocheck, file_path, sep = ";", row.names = F)
     morphorcheck <- read.table(file_path, sep = ";", header = T)
     morphocheck <- format_morphocheck(morphocheck)
