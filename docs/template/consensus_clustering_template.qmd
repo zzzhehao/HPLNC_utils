@@ -1,0 +1,51 @@
+---
+title: Consensus clustering report
+subtitle: ""
+author: Zhehao Hu
+date: last-modified
+format:
+  pdf:
+    geometry:
+      - left=15mm
+      - top=15mm
+    toc: true
+    number-sections: true
+    colorlinks: true
+    mainfont: "Arial"
+    sansfont: "Times New Roman"
+    code-overflow: wrap
+    keep-tex: false
+    include-in-header: 
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+        \DefineVerbatimEnvironment{OutputCode}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+
+\pagebreak
+
+::: {.landscape}
+
+```{r}
+#| echo: false
+#| output: asis
+
+options(warn = -1)
+options(message = -1)
+
+devtools::load_all()
+
+library(tidyverse)
+library(vegan)
+
+pm.ls <- load_cache("peakmatrix")
+pm <- pm.ls[["matrix"]]
+meta <- pm.ls[["metadata"]]
+
+scores(pca(pm), display = "sites", choices = 1:15, scaling = 1) %>% 
+    as.data.frame() %>%
+    consensus_clustering_mk(2, 20, 1000, dist_method = "cor_spearman") %>%
+    create_consensus_clustering_report()
+```
+
+:::

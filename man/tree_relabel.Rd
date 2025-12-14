@@ -4,10 +4,12 @@
 \alias{tree_relabel}
 \title{Relabel Tree's Tip Labels}
 \usage{
-tree_relabel(tree)
+tree_relabel(tree, identifier = "sequence")
 }
 \arguments{
 \item{tree}{A tidytree treedata object.}
+
+\item{identifier}{What identifier stands for. Default to \code{sequence} which means the taxa name of the tree is the sequence name. Set this to \code{organism} when running concatenated analysis, taxa name of the tree is the organism name.}
 }
 \value{
 A relabeled tidytree treedata object.

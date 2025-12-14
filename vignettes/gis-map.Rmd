@@ -1,0 +1,19 @@
+---
+title: "Plotting Coordinates on a Mercator Map"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Plotting Coordinates on a Mercator Map}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(HPLNC)
+```

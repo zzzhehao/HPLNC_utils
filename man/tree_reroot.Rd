@@ -20,7 +20,7 @@ A rerooted tidytree treedata object.
 Reroot Consensus Tree Produced by MrBayes
 }
 \details{
-A proper rerooting is currently only guaranteed for consensus tree produced by MrBayes, due to inconsistent usage of the branch support value across variety of phylogenetic analysis programs. Detaisl see Czech et al. 2017.
+A proper rerooting is currently only guaranteed for consensus tree produced by MrBayes, due to inconsistent usage of the branch support value across variety of phylogenetic analysis programs. Details see Czech et al. 2017.
 }
 \references{
 Czech, L., Huerta-Cepas, J. and Stamatakis, A. (2017) “A Critical Review on the Use of Support Values in Tree Viewers and Bioinformatics Toolkits,” Molecular Biology and Evolution, 34(6), pp. 1535–1542. Available at: https://doi.org/10.1093/molbev/msx055.

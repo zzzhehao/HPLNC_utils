@@ -4,7 +4,7 @@
 \alias{clean_label}
 \title{Clean Sequence Labels in Alignment}
 \usage{
-clean_label(fasta_path)
+clean_label(fasta_path, noprefix = F)
 }
 \arguments{
 \item{fasta_path}{Path to FASTA file}

@@ -4,7 +4,7 @@
 \alias{db_pull}
 \title{Pull Table}
 \usage{
-db_pull(table, cleaned = T, formatting = T, format = NULL)
+db_pull(table, cleaned = T, formatting = T, format = NULL, silent = F)
 }
 \arguments{
 \item{table}{Table name. Type "show_table" to display all available table names in database.}
@@ -14,6 +14,11 @@ db_pull(table, cleaned = T, formatting = T, format = NULL)
 \item{formatting}{Format table. Utilize table-specific formatting function to format the table if available. Formatting functions are always named under the rule \code{format_} + table name.}
 
 \item{format}{Argument to pass over to formatting functions. If available different formatting could be chosen.}
+
+\item{silent}{Logical. Whether to silent messages from internal function call.}
+}
+\value{
+A data.frame of requested table.
 }
 \description{
 Pull Table

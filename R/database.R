@@ -6,8 +6,10 @@
 #' @param con Connection to database as produced by `DBI::dbConnect()`
 #' @param time Time of change. Default to current time.
 #' @param signature.table Table name to write signature. 
-#' @import DBI
-#' @import RSQLite
+#' 
+#' @importFrom DBI dbListTables
+#' @importFrom DBI dbWriteTable
+#' @importFrom DBI dbDisconnect
 db_sign <- function(table, type, msg, request = request.id, con = dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite"), time = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"), signature.table = "signature") {
     if (!type %in% c("Initial", "Append", "Amend", "Del", "Hard", "Manual")) {
         stop(paste0("Unaccepted type: ", type))
@@ -21,16 +23,25 @@ db_sign <- function(table, type, msg, request = request.id, con = dbConnect(RSQL
     } else {
         dbWriteTable(con, signature.table, signature, append = T)
     }
+    dbDisconnect(con)
+    return(invisible(NULL))
 }
 
 #' Execute YAML Change Request
 #' 
-#' @import yaml
-#' @import rlist
-#' @import glue
-#' @import rlang
-#' @import tidyverse
-#' @import DBI
+#' @param request.filename Path to the YAML request file
+#' @importFrom yaml yaml.load_file
+#' @importFrom purrr flatten
+#' @importFrom rlist list.map
+#' @importFrom dplyr bind_rows
+#' @importFrom tidyr tibble
+#' @importFrom dplyr mutate
+#' @importFrom DBI dbConnect
+#' @importFrom dplyr pull
+#' @importFrom stringr str_pad
+#' @importFrom purrr walk
+#' @importFrom rlang eval_tidy
+#' @importFrom dplyr collect
 #' 
 db_exe_request <- function(request.filename) {
     request.file <- paste0("data/metadata/request/", request.filename, ".yaml")
@@ -170,8 +181,6 @@ db_pull_raw <- function(table) {
 #' @param msg Change message.
 #' @param request.id Request ID associated to this change.
 #' 
-#' @import tidyverse
-#' @import DBI
 db_write <- function(tbl, table, msg, request.id) {
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
@@ -181,9 +190,6 @@ db_write <- function(tbl, table, msg, request.id) {
 }
 
 #' Generate Snapshot from All Tables
-#' @import DBI
-#' @import tidyverse
-#' @import RSQLite
 db_snapshot <- function() {
 
     library(tidyverse)
@@ -217,9 +223,8 @@ db_snapshot <- function() {
 }
 
 #' Return Signature of the Last Request
-#' @import DBI
-#' @import tidyverse
-#' @import RSQLite
+#' @importFrom dplyr arrange
+#' @importFrom dplyr desc
 db_show_last_request <- function() {
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
@@ -234,11 +239,12 @@ db_show_last_request <- function() {
 #' @param cleaned Clean table, rows marked in `del` column will be dropped.
 #' @param formatting Format table. Utilize table-specific formatting function to format the table if available. Formatting functions are always named under the rule `format_` + table name. 
 #' @param format Argument to pass over to formatting functions. If available different formatting could be chosen.
+#' @param silent Logical. Whether to silent messages from internal function call.
 #' 
-#' @import tidyverse
-#' @import DBI
-#' @import RSQLite
-db_pull <- function(table, cleaned = T, formatting = T, format = NULL) {
+#' @return A data.frame of requested table.
+#' 
+#' @export
+db_pull <- function(table, cleaned = T, formatting = T, format = NULL, silent = F) {
     HPLNCdb <- dbConnect(RSQLite::SQLite(), "data/database/HPLNCdb.sqlite")
 
     if (table == "show_table") {
@@ -258,13 +264,13 @@ db_pull <- function(table, cleaned = T, formatting = T, format = NULL) {
     if (formatting) {
         tbl_formatter <- paste0("format_", table) 
         if (tbl_formatter %in% ls("package:HPLNC")) { # check availability of formatting function
-            print(paste0("Found formatter: ", tbl_formatter))
+            if (!silent) cli::cli_alert_info("Found formatter: {tbl_formatter}")
             if (is.null(format)) {
                 format <- ""
             } else {
                 format <- paste0(", format = ", format)
             }
-            print(paste0("Executing: ", tbl_formatter, "(tbl, formatting = T", format, ")"))
+            if (!silent) cli::cli_alert_info("Executing: {tbl_formatter}(tbl, formatting = T{format})")
             tbl <- paste0(tbl_formatter, "(tbl, formatting = T", format, ")") %>%
                 rlang::parse_expr() %>%
                 rlang::eval_tidy()

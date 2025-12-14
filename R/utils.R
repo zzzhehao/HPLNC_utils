@@ -1,9 +1,6 @@
-<<<<<<< HEAD
-#' Generate path to given date's asset folder in log (is this really necessary?)
-=======
+
 #' Create assets folder for the day
 #' @importFrom stringr str_pad
->>>>>>> cc18640 (new util function and update document)
 date2assets <- function(date) {
     paste0("docs/logs/assets/", str_pad(as.character(date), 4, "left", "0"))
 }
@@ -33,6 +30,8 @@ clear_r_cache <- function() {
 create_log <- function() {
     date <- format(today(), "%m%d")
     dir.create(date2assets(date))
+    qmd.path <- paste0("docs/logs/", date, ".qmd")
+    if (qmd.path %in% list.files("docs/logs", "\\.qmd$", full.names = T)) {stop("Log file already exists.")}
     template <- paste0(
 '---
 title: "', date, ' Log"
@@ -55,8 +54,13 @@ library(tidyverse)
 #' 
 #' @import readxl
 load_morphocheck <- function() {
+<<<<<<< HEAD
     morphocheck <- readxl::read_xlsx("docs/notes/assets/sandbox/ZHH_morphocheck.xlsx", range = readxl::cell_cols("A:O"))
     file_path <- paste0("data/metadata/archive/morphocheck_", as.character(format(today(), "%Y%m%d"))) # make archive
+=======
+    morphocheck <- readxl::read_xlsx("docs/notes/assets/sandbox/ZHH_morphocheck.xlsx", range = readxl::cell_cols("A:R"))
+    file_path <- paste0("data/metadata/archive/morphocheck_", as.character(format(today(), "%Y%m%d")), ".csv") # make archive
+>>>>>>> 94dea4a (pacs: function update)
     write.table(morphocheck, file_path, sep = ";", row.names = F)
     morphorcheck <- read.table(file_path, sep = ";", header = T)
     morphocheck <- format_morphocheck(morphocheck)
@@ -167,69 +171,6 @@ summary_sp <- function(df, metadata.station, metadata.specimen, species) {
     return(list(sp = species, barplot = barplot, map = map, specimen = specimen))
 }
 
-#' Create Species Summary Report in Image and PDF
-#' 
-#' @import kableExtra
-#' @import ggpubr
-#' @import purrr
-#' @import dplyr
-create_summary_sp <- function() {
-    suppressMessages({suppressWarnings({
-        metadata <- db_pull("metadata.Specimen.Haploniscidae")
-        metadata.ebs <- db_pull("metadata.Station")
-        morphocheck <- load_morphocheck()
-    
-        metadata.merge <- left_join(metadata, metadata.ebs %>% dplyr::select(c("station", "latStartDec", "longStartDec", "depthZone", "area_abbr_ZH")), by = "station") %>%
-            left_join(morphocheck %>% dplyr::select(-c("voucher")), by = "DZMB2HH")
-    
-        # count species per station
-        st.sp.summary <- metadata.merge %>%
-            group_by(area_abbr_ZH, station, gensp_morpho_ZH) %>%
-            summarize(n = sum(n))
-    
-        # format table so that stations from the same region stay together in plot
-        station.level.desc <- st.sp.summary$station %>% unique()
-        species.label.asc <- as.character(st.sp.summary$gensp_morpho_ZH) %>% unique() %>% sort()
-        st.sp.summary <- st.sp.summary %>%
-            mutate(
-                station = factor(station, levels = station.level.desc),
-                gensp_morpho_ZH = factor(gensp_morpho_ZH, levels = species.label.asc)
-            )
-    
-        # generate summary
-        summaryBysp <- map(st.sp.summary %>% .$gensp_morpho_ZH %>% levels(), \(sp){
-            summary <- summary_sp(st.sp.summary, metadata.ebs, metadata.merge, sp)
-        })
-    
-        # save barplot and map in picture
-        walk(summaryBysp, \(summary){
-            # extract information
-            combplot <- ggarrange(summary[["barplot"]], summary[["map"]], ncol = 2, nrow = 1)
-            sp <- summary[["sp"]]
-    
-            # save barplot and map as image
-            path <- paste0("docs/result/delim/morpho/", sp, ".png")
-            ggsave(path, combplot, width = 10, height = 5)
-        })
-    })})
-
-    cat("\n \\pagebreak \n\n")
-
-    # generate pdf content
-    walk(summaryBysp, \(summary){
-        sp <- summary[["sp"]]
-        cat("## ", summary[["sp"]], "\n\n")
-        cat("![](", paste0("/docs/result/delim/morpho/", sp, ".png"), ")")
-        print(
-            kable(summary[["specimen"]]) %>%
-                kable_styling(font_size = 9, latex_options = "striped") %>%
-                column_spec(9, width = "10em") %>%
-                column_spec(10, width = "6em")
-        )
-        cat("\n \\pagebreak \n\n")
-    })
-}
-
 #' Map a vector's values using a lookup table
 #'
 #' @param input_vector The vector of original values
@@ -241,26 +182,46 @@ create_summary_sp <- function() {
 #' @import rlang
 #' @return A new vector with the mapped values, in the same order as the input.
 map_values <- function(input_vector, lut_df, key_col, value_col) {
-
     key_col_string <- rlang::as_name(rlang::enquo(key_col))
-    temp_df <- tibble({{ key_col }} := input_vector)
+
+    # Create an unnamed tibble and set the name afterwards
+    temp_df <- tibble(input_vector) %>%
+        setNames(key_col_string)
+
     temp_df %>%
         left_join(lut_df, by = key_col_string) %>%
         pull({{ value_col }})
+}
+
+#' @param input_value The original value to look up in LUT.
+#' @param lut_df The lookup data frame
+#' @param key_col The unquoted column name in `lut_df` to match against.
+#' @param value_col The unquoted column name in `lut_df` to get the new values from.
+map_value <- function(input_value, lut_df, key_col, value_col) {
+    key_col_string <- deparse(substitute(key_col))
+    value_col_string <- deparse(substitute(value_col))
+
+    match_index <- match(input_value, lut_df[[key_col_string]])
+
+    if (!is.na(match_index)) {
+        return(lut_df[[value_col_string]][match_index])
+    } else {
+        return(NA) 
+    }
 }
 
 #' Find Best Match in A Vector of Strings using Automatic Gap Detection
 #' 
 #' @author Zhehao Hu
 #' 
-#' @import stringdist
+#' @importFrom stringdist stringdistmatrix
 #' 
 #' @param pattern A pattern to look for.
 #' @param strings A vector of strings to look for the pattern.
 #' @param index Logical. Whether to return index of the best matching item in the string vector (TRUE) or return the best matching item value (FALSE).
 #' @param silent Logical. Set to TRUE to disable result printing.
 find_best_match <- function(pattern, strings, index = F, silent = F) {
-    name.dist <- stringdist::stringdistmatrix(strings, pattern) %>% as.numeric() 
+    name.dist <- stringdistmatrix(strings, pattern) %>% as.numeric() 
     name.dist.sorted <- name.dist %>% sort()
     weights <- 1/log(name.dist.sorted[-1]+1) # weight gap significance decreasingly while upper value of the gap increases
     maxGapIndex.sorted <- diff(name.dist.sorted)*weights %>% which.max()
@@ -274,4 +235,51 @@ find_best_match <- function(pattern, strings, index = F, silent = F) {
     } else {
         return(pattern.match)
     }
+}
+
+#' Create Configuration File
+#' 
+#' Several functions in this package requires user-specific configuration to work. Setting up a configuration file could reduce repetitive manual input in workflow.
+#' @importFrom cli cli_alert_info
+#' @importFrom cli cli_abort
+#' @importFrom yaml write_yaml
+create_config <- function() {
+    if (length(list.files(".", "HPLNC_config.yaml"))>0) {
+        cli_alert_info(paste0("Configuration file already exists: ", list.files(".", "HPLNC_config.yaml")[[1]], ", overwrite?"))
+        resp <- readline("Y/n >>> ")
+        if (resp != "Y") {cli_abort("Aborted. Please modify the existing configuration.")}
+    }
+    config <- list(
+        "ABGD_executable" = "",
+        "cache_folder" = ""
+    )
+    write_yaml(config, "HPLNC_config.yaml")
+}
+
+#' @importFrom yaml read_yaml
+#' @importFrom cli cli_abort
+read_config <- function(field, silent = F) {
+    config <- read_yaml("HPLNC_config.yaml")
+    if (!field %in% names(config)) {
+        if (silent) {
+            return(NULL)
+        } else {
+            cli_abort(paste0("Field not found in configuration file: ", field))}
+    } else {
+        return(config[[field]])
+    }
+}
+
+#' Load cache files
+#' 
+#' Load cache file according to file name under the cache folder specified by user configuration.
+load_cache <- function(name) {
+    cache_folder <- read_config("cache_folder", T)
+    if (is.null(cache_folder) | cache_folder == "") {
+        cache_folder <- "cache"
+    }
+    target_file <- list.files(cache_folder, pattern = name, full.names = T, recursive = T)
+    if (length(target_file) > 1) {cli::cli_alert_warning(paste0("Found more than one cache file under pattern '", name, "', loading '", target_file[[1]], "'."))}
+    if (length(target_file) == 0) {return(NULL)}
+    return(readRDS(target_file[[1]]))
 }

@@ -1,0 +1,19 @@
+---
+title: "Molecular Species Delimitation with DNA Barcoding"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Molecular Species Delimitation with DNA Barcoding}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(HPLNC)
+```

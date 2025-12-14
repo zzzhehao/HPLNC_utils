@@ -4,7 +4,7 @@
 \alias{tree_visualize}
 \title{Visualize Phylogenetic Tree}
 \usage{
-tree_visualize(tree, xlim.factor = 1.5)
+tree_visualize(tree, xlim.factor = 1.5, align = F)
 }
 \arguments{
 \item{tree}{A tree for visualization.}

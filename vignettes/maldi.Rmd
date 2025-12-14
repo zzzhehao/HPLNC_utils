@@ -1,0 +1,19 @@
+---
+title: "Clustering Analysis using MALDI-TOF Proteomics Data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Clustering Analysis using MALDI-TOF Proteomics Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(HPLNC)
+```

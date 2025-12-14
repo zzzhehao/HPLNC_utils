@@ -8,8 +8,6 @@ format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T, format =
         return(tbl)
     }
 
-    print("Formatting...")
-
     tbl.fmt <- tbl %>% mutate(
         # formatting only
         station = factor(station),
@@ -34,7 +32,7 @@ format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T, format =
     )
     if (format > 0) {
         morphometa <- load_morphocheck()
-        tbl.fmt <- left_join(tbl.fmt, morphometa %>% dplyr::select(c("DZMB2HH", "sex_ZH", "stage_ZH", "n", "gensp_morpho_ZH")), by = "DZMB2HH")
+        tbl.fmt <- left_join(tbl.fmt, morphometa %>% dplyr::select(c("DZMB2HH", "sex_ZH", "stage_ZH", "n", "gensp_morpho_ZH", "remark_morpho_ZH", "plan", "resmaple_result", "workshop")), by = "DZMB2HH")
     }
     return(tbl.fmt)
 } 
@@ -46,7 +44,6 @@ format_metadata.Sequence.NCBI <- function(tbl, formatting = T, format = 0) {
         return(tbl)
     }
     
-    print("Formatting...")
     # Relevant sequence only
     if (format == 0) {
         tbl.format <- tbl %>% 
@@ -94,4 +91,23 @@ format_morphocheck <- function(tbl) {
             .default = paste(gen_morpho_ZH, sp_morpho_ZH)
         )
     )
+}
+
+#' Format sequence map
+format_sequence.map <- function(tbl, formatting = T, format = 1) {
+    if (!formatting) { # way to escape
+        return(tbl)
+    }
+    if (format == 1) {
+        temp.df <- read.table("data/sandbox/sequence.map.temp.txt", sep = ",", header = T)
+        temp.df <- temp.df %>%
+            mutate(
+                c_organism_id = as.character(c_organism_id),
+                c_gene_18S = paste0(c_organism_id, "_18S"),
+                c_gene_COI = paste0(c_organism_id, "_COI")
+            )
+
+        tbl.format <- bind_rows(tbl, temp.df)
+        return(tbl.format)
+    }
 }

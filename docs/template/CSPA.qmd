@@ -1,0 +1,144 @@
+---
+title: CSPA
+
+---
+
+```{r}
+k <- 10
+
+devtools::load_all()
+library(tidyverse)
+
+# pca
+pm.ls <- load_cache("peakmatrix")
+pm <- pm.ls[["matrix"]]
+meta <- pm.ls[["metadata"]]
+pca.scores <- vegan::scores(vegan::pca(pm), display = "sites", choices = 1:15, scaling = 1) %>% as.data.frame() 
+
+# cc
+cc.summary.ls <- reduce(c("cor_pearson", "manhattan", "cor_spearman"), .init = list(), .f = \(ls, dm){
+    cc.summary <- pca.scores %>% 
+        consensus_clustering(k = k, reps = 1000, dist_method = dm) %>%
+        consensus_clustering_summarize(
+            k = k, 
+            themes = list(theme(
+                axis.text.y = element_blank(),
+                legend.position = "none"
+            )))
+    ls[[dm]] <- cc.summary
+    return(ls)
+})
+
+# tsne
+metadata <- meta %>% left_join(cc.summary.ls[["cor_pearson"]]$cl, by = "label")
+tsne_plot <- function(
+    mv.matrix,
+    metadata,
+    perplexity,
+    dims = 2,
+    seed = NULL
+) {
+    if (!is.null(seed)) {set.seed(seed)}
+    tsne <- Rtsne::Rtsne(
+        dims = dims,
+        X = mv.matrix,
+        theta = 0,
+        max_iter = 5000,
+        perplexity = perplexity
+    )
+    tsne_mtx <- tsne$Y %>% 
+        as.data.frame() %>%
+        `colnames<-`(paste0("TSNE", 1:dims)) %>%
+        bind_cols(metadata)
+
+    tsne_plot <- ggplot() +
+        ggiraph::geom_point_interactive(
+            data = tsne_mtx, 
+            aes(x = TSNE1, y = TSNE2, color = cc_cluster, data_id = label, tooltip = label),
+            size = 3,
+            hover_nearest = T
+        ) +
+        labs(title = paste0("t-SNE perplexity = ", perplexity)) +
+        scale_color_manual(values = rcartocolor::carto_pal(n = length(unique(tsne_mtx$cc_cluster)), name = "Bold")) +
+        theme_minimal() +
+        theme(
+            aspect.ratio = 1,
+            plot.title = element_text(size = 12, face = "bold", family = "Times New Roman", hjust = 0.5),
+            axis.ticks.length = unit(-0.05, "in"),
+            axis.text.y = element_text(margin=unit(c(0.3,0.3,0.3,0.3), "cm")),
+            axis.text.x = element_text(margin=unit(c(0.3,0.3,0.3,0.3), "cm")),
+            axis.ticks.x = element_blank(),
+            plot.background = element_blank(),
+            legend.background = element_blank(),
+            panel.background = element_rect(color = NULL, fill = "white"),
+            panel.border = element_rect(color = "black", fill = "transparent"),
+            panel.grid = element_line(linewidth = 0.3),
+            legend.text = element_markdown(),
+            legend.position = "none"
+        )
+    return(tsne_plot)
+}
+tsne_ggplot <- tsne_plot(pm, metadata, 5, seed = 43)
+
+# spectra
+maldi.meta <- load_cache("peakmatrix")$metadata
+
+rs <- load_cache("rawSpectra.rich")
+maldi_extract_ms <- function(rs){
+    map_dfr(rs, \(s){
+        if (length(maldi.meta[which(maldi.meta$maldi_id == MALDIquant::metaData(s)$maldi_id),]$label) == 0) {return(data.frame(NULL))}
+        sp.df <- data.frame(x = s@mass, y = s@intensity, label = maldi.meta[which(maldi.meta$maldi_id == MALDIquant::metaData(s)$maldi_id),]$label)
+        
+        sp.df <- 
+            sp.df %>% 
+            mutate(mass_bin = cut(x, breaks = 1000, labels = FALSE)) %>% 
+            group_by(mass_bin) %>%
+            summarise(y = max(y), x = mean(x)) %>% 
+            mutate(label = sp.df$label[[1]]) %>% 
+            dplyr::select(-mass_bin)
+
+        return(sp.df)
+    })
+}
+rs.df <- maldi_extract_ms(rs)
+
+library(ggiraph)
+
+rs.plot <- rs.df %>% 
+    ggplot() +
+    geom_line_interactive(aes(x = x, y = y, data_id = label), color = "transparent") +
+    theme_minimal()
+
+rs.ip <- girafe(rs.plot, height_svg = 3)
+
+as <- load_cache("averagedSpectra")
+as.df <- maldi_extract_ms(as)
+
+as.plot <- as.df %>% 
+    ggplot() +
+    geom_line_interactive(aes(x = x, y = y, data_id = label), color = "transparent") +
+    theme_minimal()
+
+as.ip <- girafe(as.plot, height_svg = 3)
+
+
+
+# merge
+layout <- "
+1234
+5566
+"
+combi <- 
+    tsne_ggplot + cc.summary.ls$cor_pearson$heatmap + cc.summary.ls$manhattan$heatmap + cc.summary.ls$cor_spearman$heatmap + 
+    rs.plot + as.plot +
+    patchwork::plot_layout(design = layout, widths = c(2,3,3,3,5,5))
+
+
+ip <- ggiraph::girafe(
+    ggobj = combi,
+    height_svg = 10, 
+    width_svg = 18
+)
+
+htmltools::save_html(ip, "docs/logs/assets/1128/maldi_ds.html")
+```

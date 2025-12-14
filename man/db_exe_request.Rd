@@ -6,6 +6,9 @@
 \usage{
 db_exe_request(request.filename)
 }
+\arguments{
+\item{request.filename}{Path to the YAML request file}
+}
 \description{
 Execute YAML Change Request
 }

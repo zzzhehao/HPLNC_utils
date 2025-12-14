@@ -114,9 +114,12 @@ midwayTreeViz <- function(assets_date, outgroup, subfolder = "", treeviz = T, xl
 #' @param assets_date For locating asset folder.
 #' @param subfolder Subfolder path within the daily log asset folder.
 #' @return A tidytree treedata object.
-read_contree <- function(assets_date, subfolder) {
-    assets_path <- paste("docs/logs/assets", assets_date, subfolder, sep = "/") %>% gsub("/$", "", .)
-    contree <- list.files(assets_path, pattern = "\\.con\\.tre$", full.names = T)
+read_contree_mrbayes <- function(assets_path) {
+    if (str_detect(assets_path, "\\.con\\.tre$")) {
+        contree <- assets_path
+    } else {
+        contree <- list.files(assets_path, pattern = "\\.con\\.tre$", full.names = T)
+    }
     if (length(contree) > 1) {stop("Multiple `.con.tre` files.")}
     tree <- treeio::read.mrbayes(contree)
     return(tree)
@@ -125,45 +128,35 @@ read_contree <- function(assets_date, subfolder) {
 #' Relabel Tree's Tip Labels 
 #' 
 #' @param tree A tidytree treedata object.
+#' @param identifier What identifier stands for. Default to \code{sequence} which means the taxa name of the tree is the sequence name. Set this to \code{organism} when running concatenated analysis, taxa name of the tree is the organism name.
 #' @return A relabeled tidytree treedata object.
 #' 
 #' @import dplyr
 #' @import tidyr
 #' @import purrr
-tree_relabel <- function(tree) {
-    specmeta <- db_pull("metadata.Specimen.Haploniscidae")
-    tip.label.fmt <- tree@phylo$tip.label %>% 
-        # gsub("^VPS|^ZHH", "", .) %>% # remove voucher prefix
-        data.frame(identifier = .)
-    sequence.map <- db_pull("sequence.map", F, F)
+tree_relabel <- function(tree, identifier = "sequence") {
+    sequence.map.LUT <- generate_sequence_LUT()
+    if (identifier == "sequence") {
+        tip.label.fmt <- tree@phylo$tip.label %>% 
+            data.frame(identifier = .)
+        tip.label.LUT <- left_join(tip.label.fmt, sequence.map.LUT)
+        tree@phylo$tip.label <- map_values(tree@phylo$tip.label, tip.label.LUT, identifier, c_organism_label) # a new function to update values according to a LUT dataframe
+    } else if (identifier == "organism") {
+        sequence.map.LUT <- sequence.map.LUT %>%
+            dplyr::select(-identifier) %>%
+            distinct()
 
-    specmeta.label <- specmeta %>% 
-        dplyr::select(c("voucher", "gensp_morpho_ZH")) %>% 
-        dplyr::filter(!is.na(voucher)) %>%
-        mutate(
-            c_organism_id = str_pad(as.character(voucher), 3, "left", "0"), 
-            c_organism_label = gensp_morpho_ZH,
-            .keep = "none")
+        # now just need to relabel the voucher to informative labels
+        idx <- which(str_detect(tree@phylo$tip.label, "^ZHH|^VPS"))
+        tip.label.fmt <- tree@phylo$tip.label
+        tip.label.fmt[idx] <-
+            tree@phylo$tip.label[idx] %>% 
+            data.frame(identifier = .) %>% 
+            map_values(sequence.map.LUT, c_organism_id, c_organism_label)
 
-    sequence.map.LUT <- sequence.map %>%
-        rows_update(specmeta.label, by = "c_organism_id") %>%
-        pivot_longer(starts_with("c_gene_"), names_to = "gene", values_to = "identifier") %>% 
-        dplyr::select(c("identifier", "c_organism_id", "c_organism_label"))
-        
+        tree@phylo$tip.label <- tip.label.fmt
+    }
 
-    sequence.map.LUT.IDivA <- sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[0-9]{3}_.{3}$"))
-
-    sequence.map.LUT <- list(
-        sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[0-9]{3}_.{3}$", T)),
-        sequence.map.LUT.IDivA %>% mutate(identifier = paste0("VPS", identifier)),
-        sequence.map.LUT.IDivA %>% mutate(identifier = paste0("ZHH", identifier))
-    ) %>%
-        purrr::reduce(bind_rows) %>%
-        filter(!is.na(identifier)) %>% 
-        mutate(c_organism_label = case_when(str_detect(identifier, "^[A-Z]{3}[0-9]{3}_") ~ paste(c_organism_label, gsub("_.{3}$", "", identifier), sep = "_"), .default = c_organism_label))
-    tip.label.LUT <- left_join(tip.label.fmt, sequence.map.LUT)
-
-    tree@phylo$tip.label <- map_values(tree@phylo$tip.label, tip.label.LUT, identifier, c_organism_label) # a new function to update values according to a LUT dataframe
     return(tree)
 }
 
@@ -174,7 +167,7 @@ tree_relabel <- function(tree) {
 #' @param outgroups A vector of characters that contains all taxa labels of the outgroups. 
 #' 
 #' @details
-#' A proper rerooting is currently only guaranteed for consensus tree produced by MrBayes, due to inconsistent usage of the branch support value across variety of phylogenetic analysis programs. Detaisl see Czech et al. 2017.
+#' A proper rerooting is currently only guaranteed for consensus tree produced by MrBayes, due to inconsistent usage of the branch support value across variety of phylogenetic analysis programs. Details see Czech et al. 2017.
 #' 
 #' @return A rerooted tidytree treedata object.
 #' 
@@ -204,7 +197,7 @@ tree_reroot <- function(tree, outgroup, outgroups = NULL) {
 #' @import ggtree
 #' 
 #' @return A ggtree object.
-tree_visualize <- function(tree, xlim.factor = 1.5) {
+tree_visualize <- function(tree, xlim.factor = 1.5, align = F) {
     # tree manipulation
     tree.sc <- rescale_tree(tree, "length_mean")
     xmax <- max(tree.sc@phylo$edge.length)
@@ -213,7 +206,7 @@ tree_visualize <- function(tree, xlim.factor = 1.5) {
         geom_tiplab(
             parse = F,
             nudge_x = 0.003, 
-            align = F,
+            align = align,
             size = 2.5) + 
         geom_nodelab(
             aes(label = round(as.numeric(prob), 2)), 
