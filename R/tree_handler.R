@@ -164,7 +164,8 @@ tree_relabel <- function(tree, identifier = "sequence") {
 #'  
 #' @param tree A tidytree treedata object.
 #' @param outgroup Name of the outgroup that can be used to find all outgroup taxa. The name will be matched against tip label of the tree, and the best matching labels are used as outgroup. This argument will be ignored if `outgroups` is given.
-#' @param outgroups A vector of characters that contains all taxa labels of the outgroups. 
+#' @param outgroups A vector of characters that contains all taxa labels of the outgroups.
+#' @param match.method If \code{outgroup} is specified, how to find the outgroup taxa. \code{best} try to find all taxa whose name resembles the input, \code{include} find all taxa that includes the input in their name.
 #' 
 #' @details
 #' A proper rerooting is currently only guaranteed for consensus tree produced by MrBayes, due to inconsistent usage of the branch support value across variety of phylogenetic analysis programs. Details see Czech et al. 2017.
@@ -174,13 +175,26 @@ tree_relabel <- function(tree, identifier = "sequence") {
 #' @references Czech, L., Huerta-Cepas, J. and Stamatakis, A. (2017) “A Critical Review on the Use of Support Values in Tree Viewers and Bioinformatics Toolkits,” Molecular Biology and Evolution, 34(6), pp. 1535–1542. Available at: https://doi.org/10.1093/molbev/msx055.
 #' 
 #' @import ape
-tree_reroot <- function(tree, outgroup, outgroups = NULL) {
+tree_reroot <- function(tree, outgroup, outgroups = NULL, match.method = NULL) {
     # Set node no. as numeric for later reroot operation
     tree@data$node <- as.numeric(tree@data$node)
 
     if (is.null(outgroups)) {
-        outgroups <- find_best_match(outgroup, tree@phylo$tip.label, silent = T)
-        cat("\nOutgroup given as:", outgroup, "\nMatched", outgroups, "\n\n")
+        if (match.method == "best") {
+            outgroups <- find_best_match(outgroup, tree@phylo$tip.label, silent = T)
+            cat("\nOutgroup given as:", outgroup, "\nMatched", outgroups, "\n\n")
+        } else if (match.method == "include") {
+            outgroups <- tree@phylo$tip.label[str_detect(tree@phylo$tip.label, outgroup)]
+            cat("\nOutgroup given as:", outgroup, "\nMatched", outgroups, "\n\n")
+        } else {
+            cli_abort("{.var match.methoc} must be either 'best' or 'include', not '{match.method}'")
+        }
+        
+        if (length(outgroups) == 0) {
+            cli_abort("Outgroup not found. Given as {outgroup}.")
+        } else {
+            cli_alert_success("Outgroup given as: {outgroup}, method: {match.method}, matched: \n\n {paste(outgroups, collapse = '\n\n')}\n\n")
+        }
     }
 
     tree.rt <- ape::root(tree, outgroups, resolve.root = T, edgelabel = F)
@@ -197,7 +211,8 @@ tree_reroot <- function(tree, outgroup, outgroups = NULL) {
 #' @import ggtree
 #' 
 #' @return A ggtree object.
-tree_visualize <- function(tree, xlim.factor = 1.5, align = F) {
+#' @import ggplot2
+tree_visualize <- function(tree, xlim.factor = 1.5, align = F, taxa.font.size = 2.5) {
     # tree manipulation
     tree.sc <- rescale_tree(tree, "length_mean")
     xmax <- max(tree.sc@phylo$edge.length)
@@ -207,11 +222,11 @@ tree_visualize <- function(tree, xlim.factor = 1.5, align = F) {
             parse = F,
             nudge_x = 0.003, 
             align = align,
-            size = 2.5) + 
+            size = taxa.font.size) + 
         geom_nodelab(
             aes(label = round(as.numeric(prob), 2)), 
-            nudge_x = -0.01,
-            nudge_y = 0.2, 
+            nudge_x = -0.005,
+            nudge_y = 0.4, 
             hjust = 1, 
             size = 3.5) +
         geom_rootedge(rootedge = 0.02) +

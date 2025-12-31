@@ -83,7 +83,7 @@ format_morphocheck <- function(tbl) {
         n = ifelse(is.na(n), 1, n),
         gen_morpho_ZH = factor(gen_morpho_ZH),
         sp_morpho_ZH = factor(sp_morpho_ZH),
-        DZMB2HH = as.numeric(DZMB2HH),
+        # DZMB2HH = as.numeric(DZMB2HH), # temporarily disabled due to temporal DZMB2HH split ID in dataset
         gensp_morpho_ZH = case_when(
             is.na(gen_morpho_ZH) ~ "Haploniscidae sp.",
             !is.na(gen_morpho_ZH) & is.na(sp_morpho_ZH) ~ paste(gen_morpho_ZH, "sp."),

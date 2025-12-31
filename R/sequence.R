@@ -107,7 +107,10 @@ exe_gblocks <- function(fasta_path, gblocks_path = "/Users/hu_zhehao/Desktop/Bio
 #' @return The FASTA file will be written in the same directory. The path will be returned.
 #' @export
 convert_nexus2fasta <- function(nexus_path, fasta_path=NULL, safe_name=F, remove_outgroup=NULL) {
-    if (is.null(fasta_path)) {fasta_path <- gsub("\\.nexus$", ".fasta", nexus_path)}
+    if (is.null(fasta_path)) {
+        fasta_path <- gsub("\\.nexus$", ".fasta", nexus_path)
+    }
+    dir.create(dirname(fasta_path))
     aln <- ape::read.nexus.data(nexus_path) %>% ape::as.DNAbin()
 
     if (!is.null(remove_outgroup)) {
@@ -137,10 +140,10 @@ beast2_write_mrca <- function(nexus, monophyly_groups) {
     MRCA <- map_vec(monophyly_groups, \(g){
         name <- g[["name"]]
         labels <- g[["labels"]]
-        group.block <- paste("taxset", name, "=", labels, collapse = " ") %>% paste0(., ";")
+        group.block <- paste(labels, collapse = " ") %>% paste0("taxset ", name, " = ", ., ";")
         return(group.block)
     }) %>%
-        paste("BEGIN sets;", ., "END;", sep = "\n")   
+        paste("BEGIN sets;", ., "END;", sep = "\n")    
     write(MRCA, nexus, append = T, sep = "\n")
 }
 
@@ -359,6 +362,7 @@ abgd_delim <- function(output_folder, indices, label = NULL) {
 #' 
 #' @importFrom ape is.ultrametric
 #' @importFrom ape is.binary
+#' @importFrom splits spec.list
 #' @seealso [beast2_write_mrca()]
 #' @export
 #' @return A data frame of the delimitation result
@@ -372,7 +376,7 @@ gmyc_eval <- function(contree, prefix = NULL, method = "both") {
         } else {
             col_name <- paste0("gmyc_", m) %>% gsub("^_", "", .)
         }
-        splits::gmyc(contree, method = m) %>% splits::spec.list() %>% rename(identifier = sample_name, !!col_name := GMYC_spec)
+        splits::gmyc(contree, method = m) %>% spec.list() %>% rename(identifier = sample_name, !!col_name := GMYC_spec)
     }) %>% 
         reduce(~left_join(.x, .y, by = "identifier")) %>%
         dplyr::select(identifier, everything())
@@ -657,3 +661,24 @@ concatenate_alignment <- function(
     )
 }
 
+summarize_alignment <- function(path){
+    if (str_detect(path, "\\.nexus$")) {
+        aln <- read.nexus.data(path)
+    } else if (str_detect(path, "\\.fasta$")) {
+        aln <- read.FASTA(path)
+    } else {
+        cli_abort("Path is neither a fasta file nor a nexus file.")
+    }
+
+    cli_alert_info("Alignment read from {path}")
+    cat("\n")
+    cli_text("Number of taxa: {length(aln)}\n")
+    cli_text("Alignment width: {length(aln[[1]])} bp\n")
+    cat("\n")
+
+    return(list(
+        ntaxa = length(aln),
+        width = length(aln[[1]]),
+        taxa = names(aln)
+    ))
+}

@@ -12,7 +12,7 @@
 #' @import stringr
 update_sequence_map <- function(regenerate = F){
     # Generate wide table
-    metadata.seq <- db_pull("metadata.Sequence.NCBI", F, F)
+    metadata.seq <- db_pull("metadata.Sequence.NCBI", T, T)
     sequence.map.ncbi <- metadata.seq %>% filter(!is.na(c_gene)) %>% pivot_wider(id_cols = c_organism_id, names_from = c_gene, names_prefix = "c_gene_", values_from = `INSDSeq_primary-accession`)
 
     # Combine with vps names

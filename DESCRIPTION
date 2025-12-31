@@ -21,7 +21,7 @@ Imports:
     ggplot2 (>= 4.0.1),
     ggpubr (>= 0.6.0),
     ggtext (>= 0.1.2),
-    ggtree (>= 3.17.0),
+    ggtree (>= 4.1.1),
     glue (>= 1.8.0),
     gridExtra (>= 2.3),
     kableExtra (>= 1.4.0),
@@ -32,7 +32,7 @@ Imports:
     rlist (>= 0.4.6),
     RSQLite (>= 2.3.7),
     Rtsne (>= 0.17),
-    splits (>= 1.0-20),
+    splits (== 1.0-20),
     stringr (>= 1.5.1),
     tidyr (>= 1.3.1),
     treeio (>= 1.26.0),
@@ -42,7 +42,9 @@ Imports:
     yaml (>= 2.3.10),
     S7 (>= 0.2.1)
 Remotes: 
-    tomezard/splits
+    YuLab-SMU/ggtree
+Additional_repositories:
+    http://R-Forge.R-project.org
 Suggests: 
     knitr,
     rmarkdown
