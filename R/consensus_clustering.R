@@ -301,7 +301,8 @@ gg_heatmap_hclust <- function(
     tip_length = 0,
     themes = list(theme()),
     heat_lab = NULL,
-    args = NULL
+    args = NULL,
+    narrow = F
 ) {
     # check direction
     if (!direction %in% c(1, 2)) cli::cli_abort("{.var direction} must be either 1 or 2.")
@@ -316,20 +317,37 @@ gg_heatmap_hclust <- function(
             col_id = factor(col_id, levels = dend_order)
         )
 
-    p.dendro <- hc.obj %>%
-        as.dendrogram() %>%
-        ggdendro::dendro_data() %>%
-        ggdendro::segment() %>%
-        ggplot() +
-        geom_segment(aes(x = -y, y = x, xend = -yend, yend = xend)) +
-        geom_segment(aes(x = 0, y = x, xend = tip_length, yend = x)) +
-        scale_x_continuous(expand = c(0, 0)) +
-        scale_y_continuous(expand = dendro.stretch) +
-        theme_void() +
-        theme(
-            plot.margin = margin(0, 0, 0, 0.01),
-            aspect.ratio = 5
-        )
+    if (!narrow) {
+        p.dendro <- hc.obj %>%
+            as.dendrogram() %>%
+            ggdendro::dendro_data() %>%
+            ggdendro::segment() %>%
+            ggplot() +
+            geom_segment(aes(x = -y, y = x, xend = -yend, yend = xend)) +
+            geom_segment(aes(x = 0, y = x, xend = tip_length, yend = x)) +
+            scale_x_continuous(expand = c(0, 0)) +
+            scale_y_continuous(expand = dendro.stretch) +
+            theme_void() +
+            theme(
+                plot.margin = margin(0, 0, 0, 0.01),
+                aspect.ratio = 5
+            )
+    } else {
+        p.dendro <- hc.obj %>%
+            as.dendrogram() %>%
+            ggdendro::dendro_data() %>%
+            ggdendro::segment() %>%
+            ggplot() +
+            geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+            geom_segment(aes(y = 0, x = x, yend = tip_length, xend = x)) +
+            scale_x_continuous(expand = dendro.stretch) +
+            scale_y_continuous(expand = c(0, 0)) +
+            theme_void() +
+            theme(
+                plot.margin = margin(l = 0, r = 0, t = 0, b = 0.1),
+                aspect.ratio = 0.2
+            )
+    }
 
     p.heatmap <- heatmap_data %>%
         ggplot(aes(
@@ -339,11 +357,13 @@ gg_heatmap_hclust <- function(
             data_id = row_id,
             tooltip = row_id
         ))
-    # ggplot(aes(x = col_id, y = row_id, fill = heat, data_id = row_id))
 
     if (grid) {
         p.heatmap <- p.heatmap +
-            ggiraph::geom_tile_interactive(color = "grey85", linewidth = 0.1)
+            geom_tile(
+                color = "grey85", 
+                linewidth = 0.1
+            )
     }
 
     if (is.null(palette)) {
@@ -378,7 +398,7 @@ gg_heatmap_hclust <- function(
             scale_fill_gradientn(
                 name = heat_name,
                 colors = clr,
-                values = c(0, seq(0.01, max(matrix), length.out = palette.length)),
+                values = seq(0, 1, length.out = palette.length),
                 breaks = c(0, max(matrix)),
                 labels = heat_lab,
                 guide = guide_colorbar(
@@ -407,7 +427,7 @@ gg_heatmap_hclust <- function(
                     draw.ulim = F,
                     draw.llim = F
                 ),
-                limits = c(0, max(matrix)),
+                limits = c(-1, 1),
             )
     }
     p.heatmap <- p.heatmap +
@@ -434,8 +454,21 @@ gg_heatmap_hclust <- function(
         themes +
         args
 
+    if (narrow) {
+        p.heatmap <- p.heatmap +
+            theme(
+                plot.margin = margin(l = 0, r = 5, t = 2.5, b = 5)
+            ) +
+            labs(title = NULL)
+    }
+
     # merge
-    pp <- p.dendro + p.heatmap + patchwork::plot_layout(widths = c(1, 5))
+    if (narrow) {
+        pp <- (p.dendro / p.heatmap) +
+            patchwork::plot_layout(heights = c(1, 5))
+    } else {
+        pp <- p.dendro + p.heatmap + patchwork::plot_layout(widths = c(1, 5))
+    }
     return(pp)
 }
 
@@ -832,13 +865,13 @@ cc_ensemble_cspa <- function(
     cc_matrices <- map(cc_list, \(c){
         c@cc_matrix[ref_sample_name, ref_sample_name]
     })
-
     cc_length <- length(cc_matrices)
     cc_width <- map_vec(cc_list, \(c){
         c@silhouette_width_avg
     })
+    cc_k <- map_vec(cc_list, ~.x@k)
 
-    if (is.null(weights)) {
+    if (any(is.null(weights), weights == "equal")) {
         weights <- rep(1, cc_length)
         weight.info <- "Equal weight."
     } else if (length(weights) == 1 & is.character(weights)) {
@@ -861,18 +894,26 @@ cc_ensemble_cspa <- function(
         weight.info <- "Specified."
     }
 
+    if (any(is.null(k), k == "auto")) {
+        k <- sum(cc_k*weights) %>% floor()
+    }
+
     if (method == "mean") {
         weights <- weights/sum(weights)
         ensemble <- reduce2(cc_matrices, weights, \(matrix.ac, matrix.n, weight){
             return(matrix.ac + matrix.n * weight)
         }, .init = matrix(rep(0, length(cc_matrices[[1]])), nrow = nrow(cc_matrices[[1]])))
     } else if (method == "max") {
-         # Max Logic: Take the highest probability observed across methods
-         # (Useful for "Fuzzy Union" - if any method says they are similar, they are)
-         ensemble <- purrr::reduce(cc_matrices, \(m1, m2) pmax(m1, m2))
+        # Max Logic: Take the highest probability observed across methods
+        # (Useful for "Fuzzy Union" - if any method says they are similar, they are)
+        if (!is.null(weights)) {
+            cli::cli_alert_warning("{.var method} is set to max, weights of individual cc matrix are not considered.")
+            weight.info <- "Not considered because method = 'max'"
+        }
+        ensemble <- purrr::reduce(cc_matrices, \(m1, m2) pmax(m1, m2))
          
     } else {
-        cli::cli_abort("Unknown method: {.val {method}}")
+        cli::cli_abort("Unknown method: {.var {method}}")
     }
     
     # Fix dimnames lost during reduce
@@ -1035,33 +1076,55 @@ cc_eval <- new_class(
         colnames(ic_matrix) <- paste0("ic_cl_", unique_clusters)
         rownames(ic_matrix) <- rownames(mat)
         
-        # ic within own cluster
-        self_ics <- numeric(n_samples)
-        for(i in 1:n_samples) {
-            # Column index corresponding to the sample's assigned cluster
-            col_idx <- which(unique_clusters == clusters[i])
-            self_ics[i] <- ic_matrix[i, col_idx]
-        }
-        
+        # iterate through row indices
+        stats_df <- map_dfr(seq_len(n_samples), function(i) {
+            
+            # Current row context
+            current_cl <- clusters[i]
+            row_vals <- ic_matrix[i, ]
+            
+            # Construct the column name for the self-cluster (e.g., "ic_cl_3")
+            # This is safer than using numeric indices
+            self_col_name <- paste0("ic_cl_", current_cl)
+            
+            # Get self IC
+            ic_self <- row_vals[[self_col_name]]
+            
+            # Get others: subset vector by excluding the self name
+            other_vals <- row_vals[names(row_vals) != self_col_name]
+            
+            if (length(other_vals) > 0) {
+                # Find max among others
+                ic_2nd <- max(other_vals)
+                
+                # Extract cluster ID from the name of the max value
+                best_other_name <- names(other_vals)[which.max(other_vals)]
+                assignment_2nd <- str_extract(best_other_name, "[0-9]+$")
+            } else {
+                # Handle k=1 case
+                ic_2nd <- 0
+                assignment_2nd <- NA_character_
+            }
+            
+            list(
+                ic_self = ic_self, 
+                ic_2nd = ic_2nd, 
+                assignment_2nd = assignment_2nd
+            )
+        })
+
         # compile statistics
-        sample_stats <- data.frame(
+        sample_stats <- tibble(
             label = rownames(mat),
-            assignment = clusters,
-            ic_self = self_ics
+            assignment = clusters
         ) %>%
-            bind_cols(as.data.frame(ic_matrix)) %>%
+            bind_cols(stats_df) %>% 
+            bind_cols(as_tibble(ic_matrix)) %>%
             mutate(
-                ic_2nd = apply(ic_matrix, 1, function(row) {
-                    sorted <- sort(row, decreasing = TRUE)
-                    return(sorted[2]) 
-                }),
-                assignment_2nd = apply(ic_matrix, 1, function(row) {
-                    sorted <- sort(row, decreasing = TRUE)
-                    return(names(sorted)[2] %>% str_extract("[0-9]+$")) 
-                }),
-                confidence_score = (ic_self - ic_2nd)/ifelse(ic_self == 0, -1, ic_self)
+                # Confidence score calculation
+                confidence_score = (ic_self - ic_2nd) / if_else(ic_self == 0, 1, ic_self)
             ) %>%
-            dplyr::select(c("label", "assignment", "ic_self", "confidence_score", "assignment_2nd", "ic_2nd"), everything())
+            dplyr::select(label, assignment, ic_self, confidence_score, assignment_2nd, ic_2nd, everything())
 
         
         cluster_stats <- sample_stats %>%

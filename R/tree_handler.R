@@ -212,16 +212,48 @@ tree_reroot <- function(tree, outgroup, outgroups = NULL, match.method = NULL) {
 #' 
 #' @return A ggtree object.
 #' @import ggplot2
-tree_visualize <- function(tree, xlim.factor = 1.5, align = F, taxa.font.size = 2.5) {
+tree_visualize <- function(tree, xlim.factor = 1.5, align = F, taxa.font.size = 3.5, format.taxa = T) {
     # tree manipulation
     tree.sc <- rescale_tree(tree, "length_mean")
     xmax <- max(tree.sc@phylo$edge.length)
+    
+    if (format.taxa){
+        tiplabel.split <- tree.sc@phylo$tip.label %>% 
+            gsub(" ", "_", .) %>% 
+            gsub("\\.", "", .) %>% 
+            gsub("_sp_", "_sp._", .) %>% 
+            str_split("_")
+
+        italic.idx <- map(tiplabel.split, \(label.parts){
+            idx <- map_vec(label.parts, \(x){
+                str_detect(x, "sp|[0-9]|Haploniscidae")
+            }) %>% which() %>% min()-1
+            if (idx > 2) {idx <- 2}
+            return(idx)
+        })
+
+        tree.sc@phylo$tip.label <- map2(tiplabel.split, italic.idx, \(label.parts, idx){
+            if (idx > 0) {
+                paste(
+                    paste(label.parts[1:idx], collapse = " ") %>% paste0("italic('", ., "')"),
+                    paste(label.parts[-c(1:idx)], collapse = " ") %>% paste0("'", ., "'"),
+                    sep = "~"
+                )
+            } else {
+                paste(
+                    paste(label.parts, collapse = " ") %>% paste0("'", ., "'"),
+                    sep = "~"
+                )
+            }
+        })
+    }
+
     tree.ls <- list(tree = tree.sc, xmax = xmax)
     tree.viz <- ggtree(tree.ls[["tree"]], layout="rectangular") +
         geom_tiplab(
-            parse = F,
             nudge_x = 0.003, 
             align = align,
+            parse = format.taxa,
             size = taxa.font.size) + 
         geom_nodelab(
             aes(label = round(as.numeric(prob), 2)), 
@@ -234,6 +266,7 @@ tree_visualize <- function(tree, xlim.factor = 1.5, align = F, taxa.font.size = 
         geom_treescale(x = 0, y = 0)
     return(tree.viz)
 }
+
 
 #' Wrapper for Full Consensus Tree Visualization Process
 #' 
@@ -258,4 +291,19 @@ tree_eval <- function(assets_date, subfolder = "", outgroup, outgroups = NULL, x
     path <- paste0(assets_path, "/contree.svg")
     ggsave(path, tree.viz, width = width, height = height)
     return(path)
+
 }
+
+#' Rename certain taxa as they are proposed as new species
+rename_tree_nsp <- function(tree) {
+    tree.n <- tree
+    tree.n@phylo$tip.label <- tree@phylo$tip.label %>% 
+        data.frame(old = .) %>% 
+        mutate(new = case_when(
+            str_detect(old, "^(?=.*rostratus)(?=.*ZHH)") ~ paste0("Haploniscus_sp_ZH-2025-C_", str_extract(old, "ZHH[0-9]+")),
+            str_detect(old, "^(?=.*acutus)(?=.*ZHH)") ~ paste0("Haploniscus_sp_ZH-2025-B_", str_extract(old, "ZHH[0-9]+")),
+            .default = old
+        )) %>% 
+        pull(new)
+
+    return(tree.n)

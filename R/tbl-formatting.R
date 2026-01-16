@@ -32,7 +32,7 @@ format_metadata.Specimen.Haploniscidae <- function(tbl, formatting = T, format =
     )
     if (format > 0) {
         morphometa <- load_morphocheck()
-        tbl.fmt <- left_join(tbl.fmt, morphometa %>% dplyr::select(c("DZMB2HH", "sex_ZH", "stage_ZH", "n", "gensp_morpho_ZH", "remark_morpho_ZH", "plan", "resmaple_result", "workshop")), by = "DZMB2HH")
+        tbl.fmt <- left_join(tbl.fmt, morphometa %>% dplyr::select(c("DZMB2HH", "sex_ZH", "stage_ZH", "n", "gensp_morpho_ZH", "ON_morpho_ZH", "remark_morpho_ZH", "plan", "resample_result", "workshop")), by = "DZMB2HH")
     }
     return(tbl.fmt)
 } 

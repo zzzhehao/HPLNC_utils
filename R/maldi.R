@@ -137,6 +137,9 @@ maldi_burn_metadata <- function(
 
     if (is.null(run.eval)) {
         run.eval <- maldi_set_eval_list(rawSpectra)
+    } else {
+        run.eval <- run.eval %>% 
+            filter(eval > 0)
     }
 
     # check metadata mapping list
@@ -572,3 +575,84 @@ maldi_detect_peak <- function(
     }
 }
 
+#' Run PCA with Avg-Rnd and Rnd-Lambda Stopping Rule
+#'
+#' @param data Your peak matrix (rows = samples, cols = peaks).
+#' @param n_perm Number of permutations (default 1000).
+#' @param scale_pca Logical. TRUE = Correlation PCA (Strict Peres-Neto). FALSE = Covariance PCA (Better for MALDI).
+#' @param alpha Significance level for Rnd-Lambda (default 0.05).
+#' 
+#' @importFrom vegan rda
+#' @importFrom tibble rownames_to_column
+#'
+#' @return A list containing the number of significant axes and a results table.
+pca_avgrnd_rndlambda <- function(matrix, n_perm = 1000, scale = F, alpha = 0.05, seed = NULL) {
+    pca <- rda(matrix, scale = scale)
+    obs_eig <- pca$CA$eig
+    n_axes <- length(obs_eig)
+    
+    # permutation 
+    if (!is.null(seed)) {
+        set.seed(seed)
+    }
+    s.seed <- runif(1, 0, 9999)
+
+    bar <- cli::cli_progress_bar("Running Permutations", total = n_perm)
+    rand_eig_matrix <- map_dfr(1:n_perm, ~{
+        set.seed(.x*s.seed)
+        perm_matrix <- apply(matrix, 2, sample)
+        perm_pca <- rda(perm_matrix, scale = scale)
+        cli::cli_progress_update(id = bar)
+        return(perm_pca$CA$eig[1:n_axes])
+    })
+    cli::cli_progress_done(id = bar)
+    
+    # Avg-Rnd
+    avg_rnd_eig <- colMeans(rand_eig_matrix, na.rm = T) %>% 
+        data.frame(retain = obs_eig > .) %>% 
+        rownames_to_column(var = "axis") %>% 
+        rename(Avg_Rnd = ".")
+    
+    # Rnd-Lambda
+    res <- map_dfr(1:n_axes, ~{
+        n <- sum(rand_eig_matrix[.x] >= obs_eig[.x])
+        p <- (n+1)/(n_perm+1)
+        data.frame(axis = paste0("PC", .x), n = n, p = p) %>% 
+            mutate(p.signif = case_when(
+                p <= 0.001 ~ "***",
+                p <= 0.01 ~ "**",
+                p <= 0.05 ~ "*",
+                p <= 0.1 ~ ".",
+                .default = "ns"
+            )) %>% 
+            return()
+    }) %>% left_join(avg_rnd_eig)
+
+    find_cutoff <- function(bool_vec) {
+        if (!bool_vec[1]) return(0)
+        first_false <- which(!bool_vec)[1]
+        if (is.na(first_false)) return(length(bool_vec)) # All T
+        return(first_false - 1)
+    }
+
+    retain_avg <- find_cutoff(res$retain)
+    retain_lambda <- find_cutoff(res$p < alpha)
+
+    cli::cli_alert_success("PCA permuted successfully (permutation = {n_perm}.")
+    cli::cli_alert_info(
+        "The first {min(retain_avg, retain_lambda)} axes are suggested to retain for further analysis.\n\nRnd-Lambda suggested the first {retain_lambda} axes, Avg-Rnd suggested the first {retain_avg} axes are non-trivial.\n\nInitial seed  = {seed}, alpha = {alpha}\n\nUse `.$pca` to access observed PCA."
+    )
+
+    return(list(
+        pca = pca,
+        n_retain = min(retain_avg, retain_lambda),
+        retain_avg = retain_avg,
+        retain_lambda = retain_lambda,
+        res = res,
+        matrix = matrix,
+        permutation = n_perm,
+        scale = scale,
+        alpha = alpha,
+        seed.initial = seed
+    ))
+}

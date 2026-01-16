@@ -276,5 +276,6 @@ load_cache <- function(name) {
     target_file <- list.files(cache_folder, pattern = name, full.names = T, recursive = T)
     if (length(target_file) > 1) {cli::cli_alert_warning(paste0("Found more than one cache file under pattern '", name, "', loading '", target_file[[1]], "'."))}
     if (length(target_file) == 0) {return(NULL)}
+    cli::cli_alert_info("Loading cache: {target_file[[1]]}")
     return(readRDS(target_file[[1]]))
 }

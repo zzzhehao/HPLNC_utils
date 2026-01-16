@@ -221,6 +221,7 @@ NULL
 #' @param alignment Alignment in DNAbin
 #' @param output_path Path of the output nexus file
 #' @param mcmc_options A named list of arguments to be passed to [mrbayes_mcmc_cmd()]
+#' @param partition logical. If a partition is to be applied to alignment. 
 #' @param loci_length A numeric vector. Length of each locus. Will be passed to [mrbayes_partition_cmd()]
 #' @param loci_name A character vector. Name of each locus. Will be passed to [mrbayes_partition_cmd()]
 #' @param protein_coding_loci A character vector of the names of the protein coding locus. The locus will be partitioned further based on codon position to allow different substitution rate at each position. Will be passed to [mrbayes_partition_cmd()]
@@ -233,6 +234,7 @@ prepare_mrbayes_nexus <- function(
     alignment,
     output_path,
     mcmc_options,
+    partition = T,
     loci_length,
     loci_name,
     protein_coding_loci,
@@ -241,7 +243,11 @@ prepare_mrbayes_nexus <- function(
     sum_options = NULL
 ){
     mcmc <- do.call(mrbayes_mcmc_cmd, mcmc_options)
-    partition <- mrbayes_partition_cmd(loci_length, loci_name, protein_coding_loci)
+    if (partition) {
+        partition_arg <- mrbayes_partition_cmd(loci_length, loci_name, protein_coding_loci)
+    } else {
+        partition_arg <- ""
+    }
 
     if (pluck_depth(lset_options) == 3) {
         lset <- map_vec(lset_options, ~do.call(mrbayes_lset_cmd, .x))
@@ -264,14 +270,19 @@ prepare_mrbayes_nexus <- function(
     } else if (is.null(sum_options)) {
         sum_cmd <- mrbayes_sum_cmd()
     }
-    
-    mrbayes_block <- mrbayes_block(
+
+    arg_ls <- list(
         mcmc,
-        partition,
         lset,
         prset,
         sum_cmd
     )
+
+    if (partition) {
+        arg_ls <- c(partition_arg, arg_ls)
+    }
+
+    mrbayes_block <- do.call(mrbayes_block, arg_ls)
 
     dir.create(dirname(output_path))
     file_output_path <- ifelse(str_detect(output_path, "\\.nexus$"), output_path, paste0(output_path, ".nexus"))
