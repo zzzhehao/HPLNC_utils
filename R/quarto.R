@@ -19,6 +19,109 @@ render_species_summary <- function() {
     system(command)
 }
 
+#' Generate Species Summary
+#' @import ggtext
+#' @import ggplot2
+#' @import dplyr
+summary_sp <- function(df, metadata.station, metadata.specimen, species) {
+    palette <- c(paletteer::paletteer_d("nationalparkcolors::Badlands")[3], "#d5d5d5")
+    names(palette) <- c("TRUE", "FALSE")
+
+    fill.palette <- c(paletteer::paletteer_d("nationalparkcolors::Badlands")[3], "#dfdfdf00")
+    names(fill.palette) <- c("TRUE", "FALSE")
+
+    barplot <- df %>%
+        mutate(color = ifelse(gensp_morpho_ZH == species, "TRUE", "FALSE")) %>%
+        ggplot() +
+            geom_col( # Count bar
+                aes(x = station, y = n, fill = color),
+                width = 0.8,
+                show.legend = FALSE
+            ) +
+            labs(x = "", y = "", fill = "Morphotypes", title = species, subtitle = paste0("Using morphocheck result from ", as.character(today()))) +
+            scale_fill_manual(values = palette) +
+            ggnewscale::new_scale_fill() +
+            # Site symbol
+            geom_point( 
+                aes(x = station, y = -4, color = area_abbr_ZH, fill = area_abbr_ZH, shape = area_abbr_ZH), 
+                size = 5, 
+                show.legend = F,
+            ) +
+            scale_fill_manual(values = paletteer::paletteer_d("calecopal::eschscholzia")) +
+            scale_color_manual(values = paletteer::paletteer_d("calecopal::eschscholzia")) +
+            scale_shape_manual(values = c(21:24)) +
+            # bar bottom loc_name
+            geom_text( 
+                aes(x = station, y = -4, label = station), color = "black", size = 3, show.legend = F
+            ) +
+            # bar basis lab
+            geom_text(aes(x = station, y = -1.5, label = area_abbr_ZH), size = 3) + # Omit
+            scale_y_continuous(expand = expansion(mult = c(0.05, 0.07)), breaks = c((1:5)*4)) +
+            theme(
+                plot.title = element_markdown(),
+                legend.text = element_markdown(size = 7.5),
+                legend.position = "right",
+                legend.key.size = unit(0.4, "cm"),
+                legend.justification = c(1, 0),
+                aspect.ratio = 0.7,
+                plot.background = element_rect(fill = "white"),
+                panel.background = element_rect(fill = "white"),
+                panel.grid.major.x = element_line(color = "#CCC"),
+                axis.ticks = element_blank(),
+                legend.background = element_rect(fill = "white", color = "black"),
+                axis.text.y.left = element_blank()
+            ) +
+            coord_flip()
+
+    station.HL <- df %>% 
+        filter(gensp_morpho_ZH == species) %>% 
+        pull(station)
+
+    station.occur <- metadata.station %>% 
+        mutate(
+            occur = case_when(
+                station %in% station.HL ~ "TRUE", 
+                .default = "FALSE"
+            )
+        )
+
+    map <- plot_basemap_bathy(resolution = 10) +
+        ggnewscale::new_scale_fill() +
+        ggnewscale::new_scale_color() +
+        geom_point(
+            data = station.occur,
+            aes(x = longStartDec, y = latStartDec, color = occur, fill = occur),
+            size = 3,
+            shape = 21
+        ) + 
+        scale_color_manual(values = palette) +
+        scale_fill_manual(values = fill.palette)
+
+    display.clean <- function(col) {
+        ifelse(is.na(col), "", as.character(col))
+    }
+
+    specimen <- metadata.specimen %>%
+        dplyr::filter(gensp_morpho_ZH == species) %>% 
+        dplyr::select(c("DZMB2HH", "voucher", "station", "depthStart", "area_abbr_ZH", "n", "sex_ZH", "gear", "remark_morpho_ZH", "plan", "ON_morpho_ZH")) %>%
+        mutate(
+            voucher = display.clean(voucher),
+            sex_ZH = display.clean(sex_ZH),
+            remark_morpho_ZH = display.clean(remark_morpho_ZH),
+            ON_morpho_ZH = display.clean(ON_morpho_ZH)
+        ) %>%
+        rename(
+            sex = sex_ZH,
+            area = area_abbr_ZH,
+            remark = remark_morpho_ZH,
+            status = plan,
+            depth = depthStart,
+            ON = ON_morpho_ZH
+        ) %>%
+        arrange(area, station, n, voucher)
+
+    return(list(sp = species, barplot = barplot, map = map, specimen = specimen))
+}
 
 #' Create Species Summary Report in Image and PDF
 #' 
