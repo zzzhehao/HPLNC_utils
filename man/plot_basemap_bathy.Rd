@@ -10,11 +10,17 @@ plot_basemap_bathy(
   horizontal.tiles = 5,
   checkerboard = T,
   bathy.clr = T,
+  bathy.clr.palette = c("#051929ff", "#36515cff", "#779299ff"),
+  land.clr.palette = c("#242424ff", "#656464ff", "#b7b5b3ff"),
   land = T,
   crs = 4326,
   resolution = 5,
   z = 3,
-  cache = T
+  cache = T,
+  cache_folder = NULL,
+  legend_bathy = T,
+  legend_land = F,
+  legend_format = T
 )
 }
 \arguments{

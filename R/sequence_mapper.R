@@ -88,6 +88,7 @@ update_sequence_map <- function(regenerate = F){
 generate_sequence_LUT <- function() {
     specmeta <- db_pull("metadata.Specimen.Haploniscidae")
     sequence.map <- db_pull("sequence.map", F, T)
+    stmeta <- db_pull("metadata.Station")
 
     # Construct c_organims_id and c_organism_label to match with sequence.map
     specmeta.label <- specmeta %>% 
@@ -107,17 +108,33 @@ generate_sequence_LUT <- function() {
         dplyr::select(c("identifier", "c_organism_id", "c_organism_label"))
 
     # Extract IDivA subset
-    sequence.map.LUT.IDivA <- sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[0-9]{3}_.{3}$"))
+
+    sequence.map.LUT.IDivA <- sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "[0-9]{3}_.{3}$"))
+
+    # add locality label to ZHH seq
+    sequence.map.LUT.IDivA_ZH <- sequence.map.LUT.IDivA %>% 
+        filter(str_detect(c_organism_id, "^ZHH")) %>% 
+        mutate(
+            # identifier = paste0("ZHH", identifier),
+            voucher = c_organism_id %>% gsub("ZHH", "", .) %>% as.numeric()
+        ) %>% 
+        left_join(specmeta %>% dplyr::select(c("voucher", "station")), by = "voucher") %>% 
+        left_join(stmeta %>% dplyr::select(c("station", "loc_abbr")), by = "station") %>% 
+        mutate(c_organism_label = paste(c_organism_label, loc_abbr, sep = "_")) %>% 
+        dplyr::select(-c("voucher", "station", "loc_abbr"))
+
     # multiplies IDivA subset for two voucher prefixes
-    sequence.map.LUT <- list(
-        sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[0-9]{3}_.{3}$", T)),
-        sequence.map.LUT.IDivA %>% mutate(identifier = paste0("VPS", identifier)),
-        sequence.map.LUT.IDivA %>% mutate(identifier = paste0("ZHH", identifier))
+    sequence.map.LUT.merged <- list(
+        sequence.map.LUT %>% dplyr::filter(str_detect(identifier, "^[A-Z]{3}[0-9]{3}_.{3}$", T)),
+        # sequence.map.LUT.IDivA %>% mutate(identifier = paste0("VPS", identifier)),
+        sequence.map.LUT.IDivA %>% filter(str_detect(c_organism_id, "^VPS")),
+        sequence.map.LUT.IDivA_ZH
     ) %>%
-        purrr::reduce(bind_rows) %>%
-        filter(!is.na(identifier)) %>% 
-        mutate(c_organism_label = case_when(str_detect(identifier, "^[A-Z]{3}[0-9]{3}_") ~ paste(c_organism_label, gsub("_.{3}$", "", identifier), sep = "_"), .default = c_organism_label))
-    return(sequence.map.LUT)
+
+        purrr::reduce(bind_rows) 
+        # filter(!is.na(identifier)) %>% 
+        # mutate(c_organism_label = case_when(str_detect(identifier, "^[A-Z]{3}[0-9]{3}_") ~ paste(c_organism_label, gsub("_.{3}$", "", identifier), sep = "_"), .default = c_organism_label))
+    return(sequence.map.LUT.merged)
 }
 
 generate_orglab_LUT <- function(tip.taxa) {

@@ -207,12 +207,20 @@ tree_reroot <- function(tree, outgroup, outgroups = NULL, match.method = NULL) {
 #' 
 #' @param tree A tree for visualization.
 #' @param xlim.factor A factor to expand the x axis.
+#' @param linesize Thickness of the tree lines. Default to \code{NULL}, which is set automatically by the function.
 #' @import treeio
 #' @import ggtree
 #' 
 #' @return A ggtree object.
 #' @import ggplot2
-tree_visualize <- function(tree, xlim.factor = 1.5, align = F, taxa.font.size = 3.5, format.taxa = T) {
+tree_visualize <- function(
+    tree, 
+    xlim.factor = 1.5, 
+    align = F, 
+    taxa.font.size = 3.5, 
+    format.taxa = T,
+    linesize = NULL
+) {
     # tree manipulation
     tree.sc <- rescale_tree(tree, "length_mean")
     xmax <- max(tree.sc@phylo$edge.length)
@@ -248,8 +256,17 @@ tree_visualize <- function(tree, xlim.factor = 1.5, align = F, taxa.font.size = 
         })
     }
 
-    tree.ls <- list(tree = tree.sc, xmax = xmax)
-    tree.viz <- ggtree(tree.ls[["tree"]], layout="rectangular") +
+    tree.ls <- list(tree = tree.sc, xmax = xmax) 
+
+    treargs <- list(
+        tr = tree.ls[["tree"]],
+        layout="rectangular",
+        size = linesize
+    ) %>% purrr::compact()
+
+    gtre <- do.call(ggtree, treargs)
+
+    tree.viz <- gtre +
         geom_tiplab(
             nudge_x = 0.003, 
             align = align,

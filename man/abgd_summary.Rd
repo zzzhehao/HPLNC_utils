@@ -4,12 +4,14 @@
 \alias{abgd_summary}
 \title{Generate Summary for ABGD Result}
 \usage{
-abgd_summary(output_folder, silent = F)
+abgd_summary(output_folder, silent = F, text.partition.size = 3.4)
 }
 \arguments{
 \item{output_folder}{Path to the ABGD output folder.}
 
 \item{silent}{Logical. Whether show plot or not.}
+
+\item{text.partition.size}{Text size of the prior paritition over points.}
 }
 \value{
 A list of length 2.

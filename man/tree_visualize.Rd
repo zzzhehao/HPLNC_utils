@@ -4,12 +4,22 @@
 \alias{tree_visualize}
 \title{Visualize Phylogenetic Tree}
 \usage{
-tree_visualize(tree, xlim.factor = 1.5, align = F)
+
+tree_visualize(
+  tree,
+  xlim.factor = 1.5,
+  align = F,
+  taxa.font.size = 3.5,
+  format.taxa = T,
+  linesize = NULL
+)
 }
 \arguments{
 \item{tree}{A tree for visualization.}
 
 \item{xlim.factor}{A factor to expand the x axis.}
+
+\item{linesize}{Thickness of the tree lines. Default to \code{NULL}, which is set automatically by the function.}
 }
 \value{
 A ggtree object.
